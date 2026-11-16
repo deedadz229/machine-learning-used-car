@@ -1,0 +1,335 @@
+/* ========================================================
+   Precision Slate Stylesheet for ReDoc Interactive API Docs
+   Kelompok 2 — Praktikum Pembelajaran Mesin • Universitas Bengkulu
+   ======================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --color-slate-950: #020617;
+  --color-slate-900: #0f172a;
+  --color-slate-800: #1e293b;
+  --color-slate-700: #334155;
+  --color-slate-600: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-400: #94a3b8;
+  --color-slate-300: #cbd5e1;
+  --color-slate-200: #e2e8f0;
+  --color-slate-100: #f1f5f9;
+  --color-slate-50:  #f8fafc;
+
+  --nav-height: 56px;
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-code: 'JetBrains Mono', Consolas, Monaco, monospace;
+}
+
+/* Custom Enterprise Topbar Navbar */
+.redoc-custom-navbar {
+  background-color: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  z-index: 1000;
+  padding: 0 24px;
+  font-family: var(--font-main);
+  box-sizing: border-box;
+}
+
+.redoc-nav-inner {
+  max-width: 1440px;
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.redoc-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f8fafc;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.02rem;
+  letter-spacing: -0.01em;
+}
+
+.redoc-nav-brand svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+.redoc-nav-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #1e293b;
+  color: #38bdf8;
+  border: 1px solid #334155;
+}
+
+.redoc-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.redoc-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #334155;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.redoc-nav-link:hover {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #64748b;
+}
+
+/* Theme Toggle Button */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.theme-toggle-btn:hover {
+  background: #1e293b;
+  color: #38bdf8;
+  border-color: #64748b;
+}
+
+.theme-toggle-btn .hidden {
+  display: none !important;
+}
+
+/* ReDoc Container Offset */
+#redoc-container {
+  margin-top: var(--nav-height);
+  min-height: calc(100vh - var(--nav-height));
+}
+
+/* ========================================================
+   Overview Right Panel Helper (Solusi Area Kanan ReDoc)
+   Menampilkan panduan konsol interaktif saat di Ringkasan Sistem
+   ======================================================== */
+.redoc-overview-right-helper {
+  padding: 32px 28px;
+  color: #f8fafc;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%);
+  border-left: 1px solid #1e293b;
+  border-radius: 0 0 0 12px;
+  box-sizing: border-box;
+  font-family: var(--font-main);
+}
+
+.helper-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.helper-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 9999px;
+}
+
+.helper-status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.helper-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+}
+
+.helper-desc {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #94a3b8;
+  margin: 0 0 20px 0;
+}
+
+.quick-nav-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.helper-quick-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.quick-nav-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.quick-nav-card:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: #60a5fa;
+  transform: translateX(3px);
+}
+
+.http-badge {
+  font-family: var(--font-code);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.http-badge.post {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.http-badge.get {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.quick-nav-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.route-name {
+  font-family: var(--font-code);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.route-desc {
+  font-size: 0.76rem;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.helper-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px dashed #334155;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.helper-tip svg {
+  color: #38bdf8;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ========================================================
+   Dark Mode vs Light Mode Fine-Tuning
+   ======================================================== */
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  background-color: #0b1120 !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .redoc-wrap {
+  background-color: #0b1120 !important;
+}
+
+html[data-theme="dark"] .menu-content {
+  background-color: #0f172a !important;
+  border-right: 1px solid #1e293b !important;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Responsive Navbar */
+@media (max-width: 900px) {
+  .redoc-nav-actions .redoc-nav-link:not(:first-child) {
+    display: none;
+  }
+  .redoc-nav-badge {
+    display: none;
+  }
+}

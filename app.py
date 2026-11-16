@@ -210,7 +210,7 @@ app = FastAPI(
     },
     openapi_tags=OPENAPI_TAGS,
     docs_url=None,   # Menggunakan Swagger UI kustom di rute /docs
-    redoc_url="/redoc",
+    redoc_url=None,  # Menggunakan ReDoc kustom di rute /redoc
     lifespan=lifespan
 )
 
@@ -439,13 +439,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # ==========================================
-# Rute Swagger UI Kustom (/docs)
+# Rute Dokumentasi Kustom (/docs & /redoc)
 # ==========================================
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     """
-    Menyajikan halaman dokumentasi interaktif Swagger UI dengan tema Slate
-    dan tautan navigasi langsung ke antarmuka aplikasi utama.
+    Menyajikan dokumentasi interaktif Swagger UI dengan navbar kustom,
+    dukungan Dark/Light mode penuh, dan sinkronisasi preferensi tema dengan web utama.
     """
     res = get_swagger_ui_html(
         openapi_url=app.openapi_url or "/openapi.json",
@@ -464,7 +464,7 @@ async def custom_swagger_ui_html():
     )
 
     custom_topbar = """
-    <header class="swagger-custom-navbar">
+    <header class="swagger-custom-navbar" id="app-navbar">
       <div class="swagger-nav-inner">
         <a href="/" class="swagger-nav-brand">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -478,13 +478,420 @@ async def custom_swagger_ui_html():
         </a>
         <div class="swagger-nav-actions">
           <a href="/" class="swagger-nav-link">&larr; Kembali ke Aplikasi</a>
+          <a href="/redoc" class="swagger-nav-link">Dokumentasi ReDoc</a>
           <a href="/health" class="swagger-nav-link" target="_blank" rel="noopener">Status Server &rarr;</a>
+          
+          <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Ganti tema warna (terang/gelap)" title="Ganti tema warna">
+            <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg class="moon-icon hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
         </div>
       </div>
     </header>
     """
-    body_text = res.body.decode("utf-8").replace("<body>", f"<body>{custom_topbar}")
+
+    theme_sync_script = """
+    <script>
+      (function() {
+        var themeToggleBtn = document.getElementById("theme-toggle");
+        var sunIcon = themeToggleBtn ? themeToggleBtn.querySelector(".sun-icon") : null;
+        var moonIcon = themeToggleBtn ? themeToggleBtn.querySelector(".moon-icon") : null;
+
+        function applyTheme(isDark) {
+          if (isDark) {
+            document.body.classList.add("dark-mode");
+            document.body.classList.remove("light-mode");
+            document.documentElement.setAttribute("data-theme", "dark");
+            if (sunIcon) sunIcon.classList.add("hidden");
+            if (moonIcon) moonIcon.classList.remove("hidden");
+          } else {
+            document.body.classList.remove("dark-mode");
+            document.body.classList.add("light-mode");
+            document.documentElement.setAttribute("data-theme", "light");
+            if (sunIcon) sunIcon.classList.remove("hidden");
+            if (moonIcon) moonIcon.classList.add("hidden");
+          }
+          try {
+            localStorage.setItem("app_theme", isDark ? "dark" : "light");
+          } catch (e) {}
+        }
+
+        function initTheme() {
+          var savedTheme = null;
+          try {
+            savedTheme = localStorage.getItem("app_theme");
+          } catch (e) {}
+          var systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
+          applyTheme(isDark);
+        }
+
+        if (themeToggleBtn) {
+          themeToggleBtn.addEventListener("click", function() {
+            var isCurrentlyDark = document.body.classList.contains("dark-mode") || document.documentElement.getAttribute("data-theme") === "dark";
+            applyTheme(!isCurrentlyDark);
+          });
+        }
+
+        window.addEventListener("storage", function(e) {
+          if (e.key === "app_theme") {
+            applyTheme(e.newValue === "dark");
+          }
+        });
+
+        initTheme();
+      })();
+    </script>
+    """
+
+    body_text = res.body.decode("utf-8")
+    body_text = body_text.replace("<body>", f"<body>{custom_topbar}")
+    body_text = body_text.replace("</body>", f"{theme_sync_script}</body>")
     return HTMLResponse(content=body_text, status_code=res.status_code)
+
+
+@app.get("/redoc", include_in_schema=False)
+async def custom_redoc_html():
+    """
+    Menyajikan dokumentasi OpenAPI ReDoc profesional dengan:
+    1. Topbar terintegrasi & tombol toggle mode Gelap / Terang
+    2. Sinkronisasi tema penuh dengan aplikasi web utama
+    3. Panel bantuan interaktif pada area overview (ringkasan sistem)
+    """
+    html_content = """<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Used Car Price Estimator API — Dokumentasi ReDoc</title>
+  <link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230F172A'><path d='M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2'/><circle cx='7' cy='17' r='2'/><circle cx='17' cy='17' r='2'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/redoc-custom.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Navigasi ReDoc -->
+  <header class="redoc-custom-navbar" id="app-navbar">
+    <div class="redoc-nav-inner">
+      <a href="/" class="redoc-nav-brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2"/>
+          <circle cx="7" cy="17" r="2"/>
+          <path d="M9 17h6"/>
+          <circle cx="17" cy="17" r="2"/>
+        </svg>
+        <span class="redoc-nav-title">Used Car Price Estimator</span>
+        <span class="redoc-nav-badge">Dokumentasi ReDoc</span>
+      </a>
+
+      <div class="redoc-nav-actions">
+        <a href="/" class="redoc-nav-link">&larr; Kembali ke Aplikasi</a>
+        <a href="/docs" class="redoc-nav-link">Dokumentasi Swagger (/docs)</a>
+        <a href="/health" class="redoc-nav-link" target="_blank" rel="noopener">Status Server &rarr;</a>
+
+        <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Ganti tema warna (terang/gelap)" title="Ganti tema warna">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ReDoc Mount Container -->
+  <div id="redoc-container"></div>
+
+  <!-- ReDoc Standalone Bundle -->
+  <script src="/static/redoc.standalone.js"></script>
+
+  <script>
+    var currentIsDark = false;
+    var themeToggleBtn = document.getElementById("theme-toggle");
+    var sunIcon = themeToggleBtn ? themeToggleBtn.querySelector(".sun-icon") : null;
+    var moonIcon = themeToggleBtn ? themeToggleBtn.querySelector(".moon-icon") : null;
+
+    var darkThemeConfig = {
+      spacing: { unit: 5, sectionHorizontal: 36, sectionVertical: 36 },
+      breakpoints: { small: '50rem', medium: '85rem', large: '105rem' },
+      colors: {
+        tonalOffset: 0.2,
+        primary: { main: '#38bdf8' },
+        success: { main: '#34d399' },
+        warning: { main: '#fbbf24' },
+        error: { main: '#f87171' },
+        text: { primary: '#f8fafc', secondary: '#94a3b8' },
+        http: {
+          get: '#34d399',
+          post: '#60a5fa',
+          put: '#fbbf24',
+          options: '#94a3b8',
+          patch: '#a78bfa',
+          delete: '#f87171',
+          basic: '#94a3b8',
+          link: '#38bdf8',
+          head: '#cbd5e1'
+        },
+        responses: {
+          success: { color: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.12)' },
+          error: { color: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.12)' },
+          info: { color: '#38bdf8', backgroundColor: 'rgba(56, 189, 248, 0.12)' }
+        }
+      },
+      typography: {
+        fontSize: '14px',
+        lineHeight: '1.6',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        headings: {
+          fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          fontWeight: '700',
+          lineHeight: '1.4'
+        },
+        code: {
+          fontSize: '13px',
+          fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace",
+          backgroundColor: '#1e293b',
+          color: '#f8fafc'
+        }
+      },
+      sidebar: {
+        backgroundColor: '#0f172a',
+        textColor: '#cbd5e1',
+        activeTextColor: '#38bdf8',
+        width: '270px'
+      },
+      rightPanel: {
+        backgroundColor: '#020617',
+        textColor: '#f8fafc',
+        width: '42%'
+      },
+      codeBlock: {
+        backgroundColor: '#090d16'
+      }
+    };
+
+    var lightThemeConfig = {
+      spacing: { unit: 5, sectionHorizontal: 36, sectionVertical: 36 },
+      breakpoints: { small: '50rem', medium: '85rem', large: '105rem' },
+      colors: {
+        tonalOffset: 0.2,
+        primary: { main: '#1e40af' },
+        success: { main: '#059669' },
+        warning: { main: '#d97706' },
+        error: { main: '#dc2626' },
+        text: { primary: '#0f172a', secondary: '#475569' },
+        http: {
+          get: '#059669',
+          post: '#2563eb',
+          put: '#d97706',
+          options: '#64748b',
+          patch: '#7c3aed',
+          delete: '#dc2626',
+          basic: '#64748b',
+          link: '#2563eb',
+          head: '#475569'
+        }
+      },
+      typography: {
+        fontSize: '14px',
+        lineHeight: '1.6',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        headings: {
+          fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          fontWeight: '700',
+          lineHeight: '1.4'
+        },
+        code: {
+          fontSize: '13px',
+          fontFamily: "'JetBrains Mono', Consolas, Monaco, monospace"
+        }
+      },
+      sidebar: {
+        backgroundColor: '#f8fafc',
+        textColor: '#334155',
+        activeTextColor: '#1e40af',
+        width: '270px'
+      },
+      rightPanel: {
+        backgroundColor: '#0f172a',
+        textColor: '#ffffff',
+        width: '42%'
+      },
+      codeBlock: {
+        backgroundColor: '#020617'
+      }
+    };
+
+    function injectOverviewHelper() {
+      try {
+        var infoElem = document.querySelector('.api-info') || document.querySelector('[data-section-id="section/Ringkasan-Sistem"]');
+        if (!infoElem) return;
+
+        var parentSection = infoElem.parentElement;
+        if (!parentSection) return;
+
+        if (parentSection.querySelector('.redoc-overview-right-helper')) return;
+
+        var rightCol = parentSection.children[1];
+        if (!rightCol) {
+          rightCol = document.createElement('div');
+          rightCol.className = 'custom-right-col-placeholder';
+          rightCol.style.width = '42%';
+          rightCol.style.minWidth = '360px';
+          parentSection.appendChild(rightCol);
+        }
+
+        var helperDiv = document.createElement('div');
+        helperDiv.className = 'redoc-overview-right-helper';
+        helperDiv.innerHTML = `
+          <div class="helper-header">
+            <span class="helper-badge">Interactive API Console</span>
+            <div class="helper-status-dot" title="Server Backend & Model Aktif"></div>
+          </div>
+          <h3 class="helper-title">Konsol Sampel &amp; Respons</h3>
+          <p class="helper-desc">
+            Panel sisi kanan ini didedikasikan oleh ReDoc untuk menampilkan skema permintaan JSON, simulasi respons status HTTP, dan cuplikan kode integrasi secara interaktif.
+          </p>
+          <div class="helper-quick-nav">
+            <div class="quick-nav-title">Rute API Tersedia:</div>
+            <a href="#tag/Prediction/operation/predict_car_price_predict_post" class="quick-nav-card">
+              <span class="http-badge post">POST</span>
+              <div class="quick-nav-info">
+                <span class="route-name">/predict</span>
+                <span class="route-desc">Inferensi Estimasi Harga Mobil Bekas</span>
+              </div>
+            </a>
+            <a href="#tag/Monitoring/operation/health_check_health_get" class="quick-nav-card">
+              <span class="http-badge get">GET</span>
+              <div class="quick-nav-info">
+                <span class="route-name">/health</span>
+                <span class="route-desc">Kesiapan Server &amp; Telemetri Model</span>
+              </div>
+            </a>
+            <a href="#tag/Metadata/operation/get_brand_models_api_brand_models_get" class="quick-nav-card">
+              <span class="http-badge get">GET</span>
+              <div class="quick-nav-info">
+                <span class="route-name">/api/brand-models</span>
+                <span class="route-desc">57 Merek &amp; Daftar Model Resmi</span>
+              </div>
+            </a>
+          </div>
+          <div class="helper-tip">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-top:2px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Tip: Klik endpoint di menu samping kiri (misal <strong>POST /predict</strong>) untuk melihat parameter, contoh payload, dan model respons.</span>
+          </div>
+        `;
+
+        rightCol.innerHTML = '';
+        rightCol.appendChild(helperDiv);
+      } catch (err) {
+        console.warn("Helper injection:", err);
+      }
+    }
+
+    function renderRedoc(isDark) {
+      currentIsDark = isDark;
+      var themeObj = isDark ? darkThemeConfig : lightThemeConfig;
+      var options = {
+        scrollYOffset: 56,
+        hideDownloadButton: false,
+        expandResponses: "200,422",
+        requiredPropsFirst: true,
+        sortPropsAlphabetically: false,
+        nativeScrollbars: false,
+        theme: themeObj
+      };
+
+      var container = document.getElementById('redoc-container');
+      if (typeof Redoc !== 'undefined') {
+        Redoc.init('/openapi.json', options, container, function() {
+          setTimeout(injectOverviewHelper, 300);
+        });
+      }
+    }
+
+    function applyTheme(isDark) {
+      if (isDark) {
+        document.body.classList.add("dark-mode");
+        document.body.classList.remove("light-mode");
+        document.documentElement.setAttribute("data-theme", "dark");
+        if (sunIcon) sunIcon.classList.add("hidden");
+        if (moonIcon) moonIcon.classList.remove("hidden");
+      } else {
+        document.body.classList.remove("dark-mode");
+        document.body.classList.add("light-mode");
+        document.documentElement.setAttribute("data-theme", "light");
+        if (sunIcon) sunIcon.classList.remove("hidden");
+        if (moonIcon) moonIcon.classList.add("hidden");
+      }
+      try {
+        localStorage.setItem("app_theme", isDark ? "dark" : "light");
+      } catch (e) {}
+
+      renderRedoc(isDark);
+    }
+
+    function initTheme() {
+      var savedTheme = null;
+      try {
+        savedTheme = localStorage.getItem("app_theme");
+      } catch (e) {}
+      var systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      var isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
+      applyTheme(isDark);
+    }
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener("click", function() {
+        applyTheme(!currentIsDark);
+      });
+    }
+
+    window.addEventListener("storage", function(e) {
+      if (e.key === "app_theme") {
+        var isDark = e.newValue === "dark";
+        if (isDark !== currentIsDark) {
+          applyTheme(isDark);
+        }
+      }
+    });
+
+    initTheme();
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content, status_code=200)
 
 
 # ==========================================
