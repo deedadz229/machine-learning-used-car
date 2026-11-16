@@ -1,7 +1,7 @@
 """
-Test Suite End-to-End & Validasi 15 Test Cases
+Test Suite End-to-End & Validasi 20 Test Cases
 Used Car Price Estimator - Tugas Besar Machine Learning
-Kelompok 2
+Kelompok 2 - Universitas Bengkulu
 """
 import sys
 from pathlib import Path
@@ -13,10 +13,12 @@ from fastapi.testclient import TestClient
 import app as app_module
 from app import app
 
+
 def run_tests():
-    print("=" * 90)
+    print("=" * 115)
     print("PENGUJIAN SISTEM END-TO-END (TESTING SUITE) — USED CAR PRICE ESTIMATOR")
-    print("=" * 90)
+    print("Kelompok 2 • Praktikum Pembelajaran Mesin • Universitas Bengkulu")
+    print("=" * 115)
 
     test_results = []
 
@@ -259,17 +261,112 @@ def run_tests():
             "notes": f"Berhasil mengembalikan {len(r15.json())} merek beserta modelnya"
         })
 
+        # Case 16: Telemetri Lengkap HealthResponse JSON
+        r16 = client.get("/health?format=json")
+        j16 = r16.json()
+        passed16 = (
+            r16.status_code == 200 and
+            j16.get("model_file") == "used_car_price_model.joblib" and
+            j16.get("model_type") == "RandomForestRegressor" and
+            j16.get("n_features") == 10 and
+            "sklearn_version" in j16 and
+            "python_version" in j16 and
+            "uptime_seconds" in j16
+        )
+        test_results.append({
+            "id": "TC-16",
+            "scenario": "Telemetri Lengkap HealthResponse JSON (/health?format=json)",
+            "input": "GET /health?format=json",
+            "expected_status": 200,
+            "actual_status": r16.status_code,
+            "result": "LULUS" if passed16 else "GAGAL",
+            "notes": f"Estimator: {j16.get('model_type')}, Fitur: {j16.get('n_features')}, Uptime: {j16.get('uptime_seconds')}s"
+        })
+
+        # Case 17: Content Negotiation /health (HTML Dashboard)
+        r17 = client.get("/health", headers={"Accept": "text/html,application/xhtml+xml"})
+        passed17 = (r17.status_code == 200 and "text/html" in r17.headers.get("content-type", "") and "Kesiapan Backend" in r17.text)
+        test_results.append({
+            "id": "TC-17",
+            "scenario": "Content Negotiation /health (HTML Dashboard Browser)",
+            "input": "GET /health [Accept: text/html]",
+            "expected_status": 200,
+            "actual_status": r17.status_code,
+            "result": "LULUS" if passed17 else "GAGAL",
+            "notes": "Berhasil menyajikan dasbor visual HTML status server"
+        })
+
+        # Case 18: Swagger UI Kustom (/docs) & Custom CSS Link
+        r18 = client.get("/docs")
+        passed18 = (r18.status_code == 200 and "/static/swagger-custom.css" in r18.text)
+        test_results.append({
+            "id": "TC-18",
+            "scenario": "Penyajian Swagger UI Kustom & Slate Stylesheet (/docs)",
+            "input": "GET /docs",
+            "expected_status": 200,
+            "actual_status": r18.status_code,
+            "result": "LULUS" if passed18 else "GAGAL",
+            "notes": "Menginjeksi /static/swagger-custom.css dan parameter konfigurasi"
+        })
+
+        # Case 19: Skema OpenAPI & Dokumentasi Responses (/openapi.json)
+        r19 = client.get("/openapi.json")
+        j19 = r19.json()
+        predict_spec = j19.get("paths", {}).get("/predict", {}).get("post", {})
+        responses_doc = predict_spec.get("responses", {})
+        tags = [t["name"] for t in j19.get("tags", [])]
+        passed19 = (
+            r19.status_code == 200 and
+            "200" in responses_doc and
+            "422" in responses_doc and
+            "500" in responses_doc and
+            "503" in responses_doc and
+            "Prediction" in tags and
+            "Monitoring" in tags
+        )
+        test_results.append({
+            "id": "TC-19",
+            "scenario": "OpenAPI Specification & Responses Schema (/openapi.json)",
+            "input": "GET /openapi.json",
+            "expected_status": 200,
+            "actual_status": r19.status_code,
+            "result": "LULUS" if passed19 else "GAGAL",
+            "notes": f"Tags: {tags}, Responses terdokumentasi: 200, 422, 500, 503"
+        })
+
+        # Case 20: PredictionResponse Extended Fields (inference_ms, price_low/high)
+        r20 = client.post("/predict", json=valid_payload)
+        j20 = r20.json()
+        passed20 = (
+            r20.status_code == 200 and
+            "inference_ms" in j20 and
+            isinstance(j20.get("inference_ms"), (int, float)) and
+            "price_low" in j20 and
+            "price_high" in j20 and
+            j20.get("currency") == "USD"
+        )
+        test_results.append({
+            "id": "TC-20",
+            "scenario": "Verifikasi Field Tambahan PredictionResponse (/predict)",
+            "input": "POST /predict [Valid Payload]",
+            "expected_status": 200,
+            "actual_status": r20.status_code,
+            "result": "LULUS" if passed20 else "GAGAL",
+            "notes": f"inference_ms: {j20.get('inference_ms')} ms, Currency: {j20.get('currency')}"
+        })
+
     # Cetak Tabel Hasil
-    print(f"{'ID':<7} | {'Skenario Pengujian':<44} | {'Input':<25} | {'Exp':<5} | {'Act':<5} | {'Status':<6} | {'Catatan'}")
-    print("-" * 130)
+    print(f"{'ID':<7} | {'Skenario Pengujian':<46} | {'Input':<25} | {'Exp':<5} | {'Act':<5} | {'Status':<6} | {'Catatan'}")
+    print("-" * 135)
     for t in test_results:
-        print(f"{t['id']:<7} | {t['scenario']:<44} | {t['input']:<25} | {t['expected_status']:<5} | {t['actual_status']:<5} | {t['result']:<6} | {t['notes']}")
+        print(f"{t['id']:<7} | {t['scenario']:<46} | {t['input']:<25} | {t['expected_status']:<5} | {t['actual_status']:<5} | {t['result']:<6} | {t['notes']}")
     
     total = len(test_results)
     lulus = sum(1 for t in test_results if t["result"] == "LULUS")
-    print("=" * 130)
+    print("=" * 135)
     print(f"HASIL AKHIR: {lulus}/{total} TEST CASES LULUS ({lulus/total*100:.1f}%)")
-    print("=" * 130)
+    print("=" * 135)
+
 
 if __name__ == "__main__":
     run_tests()

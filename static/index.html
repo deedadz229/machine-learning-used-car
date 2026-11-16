@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Aplikasi Estimasi Harga Mobil Bekas berbasis Machine Learning (Random Forest Regressor) oleh Kelompok 2 Praktikum Pembelajaran Mesin Universitas Bengkulu.">
   <title>Used Car Price Estimator | Praktikum Pembelajaran Mesin</title>
+  
+  <!-- Inline SVG Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230F172A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2'/><circle cx='7' cy='17' r='2'/><path d='M9 17h6'/><circle cx='17' cy='17' r='2'/></svg>">
+  
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,12 +27,33 @@
         </svg>
         <span class="header-title">Used Car Price Estimator</span>
       </div>
-      <div class="header-meta">
-        <span class="meta-item">Kelompok 2</span>
-        <span class="meta-dot">&bull;</span>
-        <span class="meta-item">Praktikum Pembelajaran Mesin</span>
-        <span class="meta-dot">&bull;</span>
-        <span class="meta-item">Universitas Bengkulu</span>
+
+      <div class="header-right-group">
+        <div class="header-meta">
+          <span class="meta-item">Kelompok 2</span>
+          <span class="meta-dot">&bull;</span>
+          <span class="meta-item">Praktikum Pembelajaran Mesin</span>
+          <span class="meta-dot">&bull;</span>
+          <span class="meta-item">Universitas Bengkulu</span>
+        </div>
+
+        <!-- Dark Mode Toggle Button -->
+        <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Ganti tema warna (terang/gelap)" title="Ganti tema warna">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
       </div>
     </div>
   </header>
@@ -63,72 +89,76 @@
             </div>
 
             <div class="input-grid">
-              <!-- Cascading Brand Dropdown -->
-              <div class="form-field">
-                <label for="brand-trigger" class="field-label">
+              <!-- Cascading Brand Dropdown (Accessible Searchable Combobox) -->
+              <div class="form-field" id="field-wrap-brand">
+                <label for="brand-trigger" class="field-label" id="brand-label">
                   Merek Mobil (Brand) <span class="req">*</span>
                 </label>
-                <div class="searchable-combobox" id="brand-combobox">
-                  <button type="button" class="combobox-trigger" id="brand-trigger" aria-haspopup="listbox" aria-expanded="false">
+                <div class="searchable-combobox" id="brand-combobox" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="brand-options-list">
+                  <button type="button" class="combobox-trigger" id="brand-trigger" aria-labelledby="brand-label brand-selected-text" aria-haspopup="listbox" aria-expanded="false">
                     <span class="combobox-text placeholder" id="brand-selected-text">Pilih merek mobil...</span>
-                    <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M6 9l6 6 6-6"/>
                     </svg>
                   </button>
                   <div class="combobox-panel hidden" id="brand-panel">
                     <div class="combobox-search-box">
-                      <input type="text" class="combobox-search-input" id="brand-search" placeholder="Cari merek (57 merek)..." autocomplete="off">
+                      <input type="text" class="combobox-search-input" id="brand-search" placeholder="Cari merek (57 merek)..." autocomplete="off" aria-label="Cari merek mobil">
                     </div>
-                    <ul class="combobox-list" id="brand-options-list" role="listbox">
+                    <ul class="combobox-list" id="brand-options-list" role="listbox" aria-label="Daftar Merek Mobil" tabindex="-1">
                       <!-- Populated via JavaScript from brand_models.json -->
                     </ul>
                   </div>
                   <input type="hidden" id="brand" name="brand" required>
                 </div>
                 <span class="field-hint">Merek resmi yang terdaftar pada dataset pelatihan.</span>
+                <span class="field-error-text hidden" id="err-brand"></span>
               </div>
 
-              <!-- Cascading Dependent Model Dropdown -->
-              <div class="form-field">
-                <label for="model-trigger" class="field-label">
+              <!-- Cascading Dependent Model Dropdown (Accessible Searchable Combobox) -->
+              <div class="form-field" id="field-wrap-model">
+                <label for="model-trigger" class="field-label" id="model-label">
                   Model Kendaraan <span class="req">*</span>
                 </label>
-                <div class="searchable-combobox" id="model-combobox">
-                  <button type="button" class="combobox-trigger is-disabled" id="model-trigger" aria-haspopup="listbox" aria-expanded="false" disabled>
+                <div class="searchable-combobox" id="model-combobox" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="model-options-list">
+                  <button type="button" class="combobox-trigger is-disabled" id="model-trigger" aria-labelledby="model-label model-selected-text" aria-haspopup="listbox" aria-expanded="false" disabled>
                     <span class="combobox-text placeholder" id="model-selected-text">Pilih merek terlebih dahulu</span>
-                    <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <path d="M6 9l6 6 6-6"/>
                     </svg>
                   </button>
                   <div class="combobox-panel hidden" id="model-panel">
                     <div class="combobox-search-box">
-                      <input type="text" class="combobox-search-input" id="model-search" placeholder="Cari model..." autocomplete="off">
+                      <input type="text" class="combobox-search-input" id="model-search" placeholder="Cari model..." autocomplete="off" aria-label="Cari model mobil">
                     </div>
-                    <ul class="combobox-list" id="model-options-list" role="listbox">
+                    <ul class="combobox-list" id="model-options-list" role="listbox" aria-label="Daftar Model Kendaraan" tabindex="-1">
                       <!-- Populated dynamically based on selected Brand -->
                     </ul>
                   </div>
                   <input type="hidden" id="model" name="model" required>
                 </div>
                 <span class="field-hint" id="model-field-hint">Otomatis menyesuaikan dengan merek yang dipilih.</span>
+                <span class="field-error-text hidden" id="err-model"></span>
               </div>
 
               <!-- Model Year -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-model_year">
                 <label for="model_year" class="field-label">
                   Tahun Pembuatan <span class="req">*</span>
                 </label>
                 <input type="number" id="model_year" name="model_year" class="text-input" min="1974" max="2024" step="1" placeholder="Contoh: 2021" required>
                 <span class="field-hint">Rentang valid dataset: 1974 s.d. 2024.</span>
+                <span class="field-error-text hidden" id="err-model_year"></span>
               </div>
 
               <!-- Mileage -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-milage">
                 <label for="milage" class="field-label">
                   Jarak Tempuh (Mileage dalam Mil) <span class="req">*</span>
                 </label>
                 <input type="number" id="milage" name="milage" class="text-input" min="0" max="405000" step="1" placeholder="Contoh: 34742" required>
                 <span class="field-hint">Satuan mil (miles). Rentang: 0 s.d. 405.000 mil.</span>
+                <span class="field-error-text hidden" id="err-milage"></span>
               </div>
             </div>
           </div>
@@ -142,108 +172,81 @@
 
             <div class="input-grid">
               <!-- Fuel Type -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-fuel_type">
                 <label for="fuel_type" class="field-label">
                   Jenis Bahan Bakar <span class="req">*</span>
                 </label>
                 <select id="fuel_type" name="fuel_type" class="select-input" required>
                   <option value="" disabled selected>Pilih bahan bakar...</option>
-                  <option value="Gasoline">Gasoline (Bensin)</option>
-                  <option value="Diesel">Diesel</option>
-                  <option value="Hybrid">Hybrid</option>
-                  <option value="E85 Flex Fuel">E85 Flex Fuel</option>
-                  <option value="Plug-In Hybrid">Plug-In Hybrid</option>
+                  <!-- Populated dynamically via JS from categories.json -->
                 </select>
                 <span class="field-hint">Tipe bahan bakar standar operasional.</span>
+                <span class="field-error-text hidden" id="err-fuel_type"></span>
               </div>
 
               <!-- Engine -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-engine">
                 <label for="engine" class="field-label">
                   Spesifikasi Mesin (Engine) <span class="req">*</span>
                 </label>
-                <input type="text" id="engine" name="engine" class="text-input" list="engine-presets" placeholder="Contoh: 3.8L V6 24V GDI DOHC" required autocomplete="off">
+                <input type="text" id="engine" name="engine" class="text-input" list="engine-presets" placeholder="Ketik atau pilih mesin (1.000+ opsi)..." required autocomplete="off">
                 <datalist id="engine-presets">
-                  <option value="3.8L V6 24V GDI DOHC">
-                  <option value="2.0L I4 16V GDI DOHC Turbo">
-                  <option value="3.5 Liter DOHC">
-                  <option value="300.0HP 3.7L V6 Cylinder Engine Flex Fuel Capability">
-                  <option value="354.0HP 3.5L V6 Cylinder Engine Gas/Electric Hybrid">
-                  <option value="5.0L V8 32V DOHC">
-                  <option value="2.5L I4 16V PDI DOHC">
-                  <option value="3.0L V6 24V GDI DOHC Turbo">
+                  <!-- Populated dynamically via JS from categories.json -->
                 </datalist>
                 <span class="field-hint">Kapasitas silinder dan konfigurasi valve.</span>
+                <span class="field-error-text hidden" id="err-engine"></span>
               </div>
 
               <!-- Transmission -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-transmission">
                 <label for="transmission" class="field-label">
                   Transmisi <span class="req">*</span>
                 </label>
-                <input type="text" id="transmission" name="transmission" class="text-input" list="trans-presets" placeholder="Contoh: 8-Speed Automatic, A/T, Manual" required autocomplete="off">
+                <input type="text" id="transmission" name="transmission" class="text-input" list="trans-presets" placeholder="Ketik atau pilih transmisi (55 opsi)..." required autocomplete="off">
                 <datalist id="trans-presets">
-                  <option value="Automatic">
-                  <option value="A/T">
-                  <option value="6-Speed A/T">
-                  <option value="8-Speed Automatic">
-                  <option value="8-Speed A/T">
-                  <option value="7-Speed A/T">
-                  <option value="10-Speed Automatic">
-                  <option value="6-Speed M/T">
-                  <option value="Manual">
-                  <option value="Transmission w/Dual Shift Mode">
+                  <!-- Populated dynamically via JS from categories.json -->
                 </datalist>
                 <span class="field-hint">Tipe gearbox transmisi kendaraan.</span>
+                <span class="field-error-text hidden" id="err-transmission"></span>
               </div>
 
               <!-- Exterior Color -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-ext_col">
                 <label for="ext_col" class="field-label">
                   Warna Eksterior <span class="req">*</span>
                 </label>
-                <input type="text" id="ext_col" name="ext_col" class="text-input" list="ext-color-presets" placeholder="Contoh: Moonlight Cloud, Black, White" required autocomplete="off">
+                <input type="text" id="ext_col" name="ext_col" class="text-input" list="ext-color-presets" placeholder="Ketik atau pilih warna (270+ opsi)..." required autocomplete="off">
                 <datalist id="ext-color-presets">
-                  <option value="Black">
-                  <option value="White">
-                  <option value="Gray">
-                  <option value="Silver">
-                  <option value="Blue">
-                  <option value="Red">
-                  <option value="Moonlight Cloud">
-                  <option value="Glacier White Metallic">
+                  <!-- Populated dynamically via JS from categories.json -->
                 </datalist>
                 <span class="field-hint">Warna cat eksterior kendaraan.</span>
+                <span class="field-error-text hidden" id="err-ext_col"></span>
               </div>
 
               <!-- Interior Color -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-int_col">
                 <label for="int_col" class="field-label">
                   Warna Interior <span class="req">*</span>
                 </label>
-                <input type="text" id="int_col" name="int_col" class="text-input" list="int-color-presets" placeholder="Contoh: Gray, Black, Beige" required autocomplete="off">
+                <input type="text" id="int_col" name="int_col" class="text-input" list="int-color-presets" placeholder="Ketik atau pilih warna (130+ opsi)..." required autocomplete="off">
                 <datalist id="int-color-presets">
-                  <option value="Black">
-                  <option value="Gray">
-                  <option value="Beige">
-                  <option value="Brown">
-                  <option value="White">
-                  <option value="Red">
+                  <!-- Populated dynamically via JS from categories.json -->
                 </datalist>
                 <span class="field-hint">Warna dominan kabin interior.</span>
+                <span class="field-error-text hidden" id="err-int_col"></span>
               </div>
 
               <!-- Accident History -->
-              <div class="form-field">
+              <div class="form-field" id="field-wrap-accident">
                 <label for="accident" class="field-label">
                   Riwayat Kerusakan / Kecelakaan <span class="req">*</span>
                 </label>
                 <select id="accident" name="accident" class="select-input" required>
                   <option value="" disabled selected>Pilih status riwayat...</option>
-                  <option value="None reported">None reported (Tidak ada catatan kecelakaan)</option>
-                  <option value="At least 1 accident or damage reported">At least 1 accident or damage reported (Ada catatan kecelakaan/kerusakan)</option>
+                  <!-- Populated dynamically via JS from categories.json -->
                 </select>
                 <span class="field-hint">Status catatan kecelakaan pada riwayat kendaraan.</span>
+                <span class="field-error-text hidden" id="err-accident"></span>
               </div>
             </div>
           </div>
@@ -251,7 +254,7 @@
           <!-- Form Action Buttons -->
           <div class="form-footer">
             <button type="submit" id="btn-submit" class="btn-primary">
-              <span class="btn-spinner hidden" id="loading-spinner"></span>
+              <span class="btn-spinner hidden" id="loading-spinner" aria-hidden="true"></span>
               <span id="btn-label">Hitung Estimasi Harga</span>
             </button>
             <button type="button" id="btn-reset" class="btn-secondary">Reset Formulir</button>
@@ -263,10 +266,11 @@
       <aside class="valuation-column">
         <div class="sticky-panel">
           <!-- Server Status Header -->
-          <div class="server-status-bar" id="server-status-bar">
+          <a href="/health" class="server-status-bar" id="server-status-bar" title="Buka Dasbor Status Kesehatan Server" target="_blank" rel="noopener">
             <span class="status-indicator-dot" id="status-dot"></span>
             <span class="status-indicator-text" id="status-text">Memeriksa status backend...</span>
-          </div>
+            <span class="status-link-hint">&rarr;</span>
+          </a>
 
           <!-- Valuation Card -->
           <div class="valuation-card" id="valuation-card">
@@ -282,23 +286,52 @@
 
             <!-- Active Result State -->
             <div class="valuation-result hidden" id="valuation-result" aria-live="polite">
-              <div class="price-container">
+              <div class="price-header-row">
                 <div class="price-headline" id="price-headline">$0.00 USD</div>
+                <div class="inference-time-badge" id="inference-time-badge">-- ms</div>
               </div>
 
               <div class="valuation-badge-row">
-                <svg class="check-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <svg class="check-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
                 <span>Prediksi selesai dihitung</span>
               </div>
 
-              <div class="specs-summary-box" id="specs-summary-box">
-                <!-- e.g. 2021 Hyundai Palisade SEL • 34,742 mil -->
+              <!-- Input Summary Chips -->
+              <div class="specs-chips-row" id="specs-chips-row">
+                <!-- Dynamically populated chips -->
+              </div>
+
+              <!-- Regression Visual Price Range Bar (shown only when price_low/price_high available) -->
+              <div class="price-range-wrapper hidden" id="price-range-wrapper">
+                <div class="range-header">
+                  <span class="range-title">Rentang Estimasi Wajar</span>
+                  <span class="range-subtitle">Perkiraan, bukan harga pasti</span>
+                </div>
+                <div class="range-bar-track">
+                  <div class="range-bar-fill"></div>
+                  <div class="range-bar-pin" title="Estimasi Median"></div>
+                </div>
+                <div class="range-labels">
+                  <span id="range-val-low">$0.00</span>
+                  <span class="range-mid-label" id="range-val-mid">Nilai Tengah</span>
+                  <span id="range-val-high">$0.00</span>
+                </div>
+              </div>
+
+              <div class="result-actions-row">
+                <button type="button" class="btn-copy-result" id="btn-copy-result">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span id="copy-btn-text">Salin Hasil</span>
+                </button>
               </div>
 
               <p class="valuation-note">
-                Estimasi dihitung oleh model regresi Random Forest (200 trees) berbasis data historis transaksi.
+                Estimasi dihitung oleh model regresi Random Forest berbasis data historis transaksi.
               </p>
             </div>
           </div>
@@ -306,7 +339,7 @@
           <!-- Error Alert Panel -->
           <div class="error-panel hidden" id="error-panel" role="alert">
             <div class="error-title-row">
-              <span class="error-icon">⚠️</span>
+              <span class="error-icon" aria-hidden="true">⚠️</span>
               <strong id="error-title">Gagal Melakukan Prediksi</strong>
             </div>
             <p class="error-msg" id="error-message">Mohon periksa kembali isian formulir.</p>

@@ -4,6 +4,54 @@
  */
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Theme Management (Dark / Light Mode)
+  const themeToggleBtn = document.getElementById("theme-toggle");
+  const sunIcon = themeToggleBtn ? themeToggleBtn.querySelector(".sun-icon") : null;
+  const moonIcon = themeToggleBtn ? themeToggleBtn.querySelector(".moon-icon") : null;
+
+  function initTheme() {
+    let savedTheme = null;
+    try {
+      savedTheme = localStorage.getItem("app_theme");
+    } catch (e) {
+      // localStorage might be disabled
+    }
+
+    const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
+
+    applyTheme(isDark);
+  }
+
+  function applyTheme(isDark) {
+    if (isDark) {
+      document.body.classList.add("dark-mode");
+      document.body.classList.remove("light-mode");
+      document.documentElement.setAttribute("data-theme", "dark");
+      if (sunIcon) sunIcon.classList.add("hidden");
+      if (moonIcon) moonIcon.classList.remove("hidden");
+    } else {
+      document.body.classList.remove("dark-mode");
+      document.body.classList.add("light-mode");
+      document.documentElement.setAttribute("data-theme", "light");
+      if (sunIcon) sunIcon.classList.remove("hidden");
+      if (moonIcon) moonIcon.classList.add("hidden");
+    }
+
+    try {
+      localStorage.setItem("app_theme", isDark ? "dark" : "light");
+    } catch (e) {}
+  }
+
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener("click", () => {
+      const isCurrentlyDark = document.body.classList.contains("dark-mode");
+      applyTheme(!isCurrentlyDark);
+    });
+  }
+
+  initTheme();
+
   // Element References
   const form = document.getElementById("prediction-form");
   const btnSubmit = document.getElementById("btn-submit");
@@ -15,7 +63,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const valuationIdle = document.getElementById("valuation-idle");
   const valuationResult = document.getElementById("valuation-result");
   const priceHeadline = document.getElementById("price-headline");
-  const specsSummaryBox = document.getElementById("specs-summary-box");
+  const inferenceTimeBadge = document.getElementById("inference-time-badge");
+  const specsChipsRow = document.getElementById("specs-chips-row");
+  const priceRangeWrapper = document.getElementById("price-range-wrapper");
+  const rangeValLow = document.getElementById("range-val-low");
+  const rangeValHigh = document.getElementById("range-val-high");
+  const btnCopyResult = document.getElementById("btn-copy-result");
+  const copyBtnText = document.getElementById("copy-btn-text");
 
   // Error Alert References
   const errorPanel = document.getElementById("error-panel");
@@ -46,6 +100,20 @@ document.addEventListener("DOMContentLoaded", () => {
     accident: document.getElementById("accident")
   };
 
+  // Field Error Spans
+  const fieldErrorSpans = {
+    brand: document.getElementById("err-brand"),
+    model: document.getElementById("err-model"),
+    model_year: document.getElementById("err-model_year"),
+    milage: document.getElementById("err-milage"),
+    fuel_type: document.getElementById("err-fuel_type"),
+    engine: document.getElementById("err-engine"),
+    transmission: document.getElementById("err-transmission"),
+    ext_col: document.getElementById("err-ext_col"),
+    int_col: document.getElementById("err-int_col"),
+    accident: document.getElementById("err-accident")
+  };
+
   // Combobox Brand Elements
   const brandCombobox = document.getElementById("brand-combobox");
   const brandTrigger = document.getElementById("brand-trigger");
@@ -63,40 +131,134 @@ document.addEventListener("DOMContentLoaded", () => {
   const modelOptionsList = document.getElementById("model-options-list");
   const modelFieldHint = document.getElementById("model-field-hint");
 
-  // State: Mapping Brand -> Models from dataset
+  // State: Mapping Brand -> Models & Categories Metadata
   let brandModelsMap = {};
+  let categoriesData = {};
   let currentBrand = "";
   let currentModel = "";
+  let lastPredictionResult = null;
+
+  // Active keyboard highlight indices for accessible comboboxes
+  let brandHighlightIndex = -1;
+  let modelHighlightIndex = -1;
 
   // ==========================================
   // 1. Inisialisasi Data & Cascading Combobox
   // ==========================================
   async function initializeData() {
     try {
-      const response = await fetch("/static/brand_models.json");
-      if (!response.ok) {
-        throw new Error("Gagal mengambil data pemetaan brand_models.json");
+      const [brandRes, catRes] = await Promise.all([
+        fetch("/static/brand_models.json"),
+        fetch("/static/categories.json")
+      ]);
+
+      if (brandRes.ok) {
+        brandModelsMap = await brandRes.json();
+      } else {
+        const fallbackRes = await fetch("/api/brand-models");
+        if (fallbackRes.ok) brandModelsMap = await fallbackRes.json();
       }
-      brandModelsMap = await response.json();
+
+      if (catRes.ok) {
+        categoriesData = await catRes.json();
+      }
+
       populateBrandList(Object.keys(brandModelsMap).sort());
+      populateDynamicCategories(categoriesData);
+
     } catch (err) {
-      console.error("Kesalahan inisialisasi brand_models:", err);
-      // Fallback coba ke endpoint API backend
-      try {
-        const apiRes = await fetch("/api/brand-models");
-        if (apiRes.ok) {
-          brandModelsMap = await apiRes.json();
-          populateBrandList(Object.keys(brandModelsMap).sort());
-        }
-      } catch (apiErr) {
-        console.error("Gagal memuat fallback:", apiErr);
-      }
+      console.error("Kesalahan inisialisasi metadata:", err);
     }
+  }
+
+  // Isi seluruh datalist dan select dari categories.json
+  function populateDynamicCategories(cat) {
+    if (!cat) return;
+
+    // 1. Fuel Type Select
+    if (cat.fuel_type && fields.fuel_type) {
+      const select = fields.fuel_type;
+      const currentVal = select.value;
+      select.innerHTML = '<option value="" disabled selected>Pilih bahan bakar...</option>';
+      
+      const fuelLabels = {
+        "Gasoline": "Gasoline (Bensin)",
+        "Diesel": "Diesel",
+        "Hybrid": "Hybrid (HEV)",
+        "Plug-In Hybrid": "Plug-In Hybrid (PHEV)",
+        "E85 Flex Fuel": "E85 Flex Fuel",
+        "not supported": "not supported (Tidak Didukung)",
+        "–": "– (Tidak Ditentukan / Lainnya)"
+      };
+
+      cat.fuel_type.forEach(ft => {
+        const opt = document.createElement("option");
+        opt.value = ft;
+        opt.textContent = fuelLabels[ft] || ft;
+        select.appendChild(opt);
+      });
+
+      if (currentVal) select.value = currentVal;
+    }
+
+    // 2. Accident Select
+    if (cat.accident && fields.accident) {
+      const select = fields.accident;
+      const currentVal = select.value;
+      select.innerHTML = '<option value="" disabled selected>Pilih status riwayat...</option>';
+      
+      const accidentLabels = {
+        "None reported": "None reported (Tidak ada catatan kecelakaan)",
+        "At least 1 accident or damage reported": "At least 1 accident or damage reported (Ada catatan kecelakaan/kerusakan)"
+      };
+
+      cat.accident.forEach(acc => {
+        const opt = document.createElement("option");
+        opt.value = acc;
+        opt.textContent = accidentLabels[acc] || acc;
+        select.appendChild(opt);
+      });
+
+      if (currentVal) select.value = currentVal;
+    }
+
+    // 3. Engine Datalist
+    if (cat.engine) {
+      populateDatalist("engine-presets", cat.engine);
+    }
+
+    // 4. Transmission Datalist
+    if (cat.transmission) {
+      populateDatalist("trans-presets", cat.transmission);
+    }
+
+    // 5. Exterior Color Datalist
+    if (cat.ext_col) {
+      populateDatalist("ext-color-presets", cat.ext_col);
+    }
+
+    // 6. Interior Color Datalist
+    if (cat.int_col) {
+      populateDatalist("int-color-presets", cat.int_col);
+    }
+  }
+
+  function populateDatalist(datalistId, items) {
+    const dl = document.getElementById(datalistId);
+    if (!dl) return;
+    dl.innerHTML = "";
+    items.forEach(val => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      dl.appendChild(opt);
+    });
   }
 
   // Isi opsi daftar merek
   function populateBrandList(brands) {
     brandOptionsList.innerHTML = "";
+    brandHighlightIndex = -1;
+
     if (brands.length === 0) {
       const emptyLi = document.createElement("li");
       emptyLi.className = "combobox-empty";
@@ -105,14 +267,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    brands.forEach((brandName) => {
+    brands.forEach((brandName, idx) => {
       const li = document.createElement("li");
       li.className = "combobox-item";
       li.setAttribute("role", "option");
+      li.id = `brand-opt-${idx}`;
       li.dataset.value = brandName;
       li.textContent = brandName;
       if (brandName === currentBrand) {
         li.classList.add("is-selected");
+        li.setAttribute("aria-selected", "true");
+      } else {
+        li.setAttribute("aria-selected", "false");
       }
       li.addEventListener("click", () => selectBrand(brandName));
       brandOptionsList.appendChild(li);
@@ -122,6 +288,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Isi opsi daftar model berdasarkan merek terpilih
   function populateModelList(models) {
     modelOptionsList.innerHTML = "";
+    modelHighlightIndex = -1;
+
     if (!models || models.length === 0) {
       const emptyLi = document.createElement("li");
       emptyLi.className = "combobox-empty";
@@ -130,14 +298,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    models.forEach((modelName) => {
+    models.forEach((modelName, idx) => {
       const li = document.createElement("li");
       li.className = "combobox-item";
       li.setAttribute("role", "option");
+      li.id = `model-opt-${idx}`;
       li.dataset.value = modelName;
       li.textContent = modelName;
       if (modelName === currentModel) {
         li.classList.add("is-selected");
+        li.setAttribute("aria-selected", "true");
+      } else {
+        li.setAttribute("aria-selected", "false");
       }
       li.addEventListener("click", () => selectModel(modelName));
       modelOptionsList.appendChild(li);
@@ -150,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fields.brand.value = brandName;
     brandSelectedText.textContent = brandName;
     brandSelectedText.classList.remove("placeholder");
-    brandTrigger.classList.remove("is-invalid");
+    clearFieldError("brand");
     closeBrandPanel();
 
     // Reset pilihan model sebelumnya ketika brand berubah
@@ -158,7 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fields.model.value = "";
     modelSelectedText.textContent = `Pilih model ${brandName}...`;
     modelSelectedText.classList.add("placeholder");
-    modelTrigger.classList.remove("is-invalid");
+    clearFieldError("model");
 
     // Aktifkan dropdown model
     modelTrigger.disabled = false;
@@ -178,15 +350,16 @@ document.addEventListener("DOMContentLoaded", () => {
     fields.model.value = modelName;
     modelSelectedText.textContent = modelName;
     modelSelectedText.classList.remove("placeholder");
-    modelTrigger.classList.remove("is-invalid");
+    clearFieldError("model");
     closeModelPanel();
     hideError();
   }
 
-  // Panel Open/Close Handlers
+  // Panel Open/Close Handlers dengan ARIA
   function openBrandPanel() {
     closeModelPanel();
     brandPanel.classList.remove("hidden");
+    brandCombobox.setAttribute("aria-expanded", "true");
     brandTrigger.setAttribute("aria-expanded", "true");
     brandSearch.value = "";
     populateBrandList(Object.keys(brandModelsMap).sort());
@@ -195,13 +368,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function closeBrandPanel() {
     brandPanel.classList.add("hidden");
+    brandCombobox.setAttribute("aria-expanded", "false");
     brandTrigger.setAttribute("aria-expanded", "false");
+    brandTrigger.removeAttribute("aria-activedescendant");
+    brandHighlightIndex = -1;
   }
 
   function openModelPanel() {
     if (!currentBrand) return;
     closeBrandPanel();
     modelPanel.classList.remove("hidden");
+    modelCombobox.setAttribute("aria-expanded", "true");
     modelTrigger.setAttribute("aria-expanded", "true");
     modelSearch.value = "";
     const models = brandModelsMap[currentBrand] || [];
@@ -211,7 +388,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function closeModelPanel() {
     modelPanel.classList.add("hidden");
+    modelCombobox.setAttribute("aria-expanded", "false");
     modelTrigger.setAttribute("aria-expanded", "false");
+    modelTrigger.removeAttribute("aria-activedescendant");
+    modelHighlightIndex = -1;
   }
 
   // Event Listeners Dropdown Triggers
@@ -250,6 +430,68 @@ document.addEventListener("DOMContentLoaded", () => {
     populateModelList(filtered);
   });
 
+  // Navigasi Keyboard Aksesibel pada Combobox Brand
+  brandSearch.addEventListener("keydown", (e) => {
+    const items = brandOptionsList.querySelectorAll(".combobox-item");
+    if (items.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      brandHighlightIndex = (brandHighlightIndex + 1) % items.length;
+      updateHighlight(items, brandHighlightIndex, brandTrigger);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      brandHighlightIndex = (brandHighlightIndex - 1 + items.length) % items.length;
+      updateHighlight(items, brandHighlightIndex, brandTrigger);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (brandHighlightIndex >= 0 && brandHighlightIndex < items.length) {
+        selectBrand(items[brandHighlightIndex].dataset.value);
+        brandTrigger.focus();
+      }
+    } else if (e.key === "Escape") {
+      closeBrandPanel();
+      brandTrigger.focus();
+    }
+  });
+
+  // Navigasi Keyboard Aksesibel pada Combobox Model
+  modelSearch.addEventListener("keydown", (e) => {
+    const items = modelOptionsList.querySelectorAll(".combobox-item");
+    if (items.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      modelHighlightIndex = (modelHighlightIndex + 1) % items.length;
+      updateHighlight(items, modelHighlightIndex, modelTrigger);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      modelHighlightIndex = (modelHighlightIndex - 1 + items.length) % items.length;
+      updateHighlight(items, modelHighlightIndex, modelTrigger);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (modelHighlightIndex >= 0 && modelHighlightIndex < items.length) {
+        selectModel(items[modelHighlightIndex].dataset.value);
+        modelTrigger.focus();
+      }
+    } else if (e.key === "Escape") {
+      closeModelPanel();
+      modelTrigger.focus();
+    }
+  });
+
+  function updateHighlight(items, index, triggerEl) {
+    items.forEach((item, idx) => {
+      if (idx === index) {
+        item.classList.add("is-highlighted");
+        item.scrollIntoView({ block: "nearest" });
+        if (triggerEl) triggerEl.setAttribute("aria-activedescendant", item.id);
+      } else {
+        item.classList.remove("is-highlighted");
+      }
+    });
+  }
+
   // Cegah klik search panel dari menutup panel
   brandPanel.addEventListener("click", (e) => e.stopPropagation());
   modelPanel.addEventListener("click", (e) => e.stopPropagation());
@@ -260,7 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
     closeModelPanel();
   });
 
-  // Escape key menutup dropdown
+  // Escape key global
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeBrandPanel();
@@ -311,12 +553,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function applyPreset(data) {
-    // 1. Set Brand dan trigger cascading populate model
     selectBrand(data.brand);
-    // 2. Set Model
     selectModel(data.model);
 
-    // 3. Set atribut lainnya
     fields.model_year.value = data.model_year;
     fields.milage.value = data.milage;
     fields.fuel_type.value = data.fuel_type;
@@ -326,8 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fields.int_col.value = data.int_col;
     fields.accident.value = data.accident;
 
-    // Bersihkan highlight galat
-    document.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
+    clearAllErrors();
     hideError();
   }
 
@@ -354,7 +592,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modelTrigger.classList.add("is-disabled");
     modelFieldHint.textContent = "Otomatis menyesuaikan dengan merek yang dipilih.";
 
-    document.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
+    clearAllErrors();
     
     // Kembalikan ke state idle
     valuationResult.classList.add("hidden");
@@ -363,23 +601,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ==========================================
-  // 4. Server Health Check
+  // 4. Server Health Check & Polling (30s)
   // ==========================================
   async function checkServerHealth() {
     try {
-      const res = await fetch("/health");
+      const res = await fetch("/health?format=json");
       if (res.ok) {
         const data = await res.json();
         if (data.model_loaded) {
           statusDot.className = "status-indicator-dot online";
-          statusText.textContent = `Backend Siap (${data.total_brands_available || 57} merek aktif)`;
+          const modelName = data.model_type || "RandomForest";
+          statusText.textContent = `Backend Siap (${data.total_brands_available || 57} merek • ${modelName})`;
         } else {
           statusDot.className = "status-indicator-dot offline";
           statusText.textContent = "Model Machine Learning belum siap";
         }
       } else {
         statusDot.className = "status-indicator-dot offline";
-        statusText.textContent = "Status Backend Degradasi";
+        statusText.textContent = "Status Backend Degradasi (503)";
       }
     } catch (err) {
       statusDot.className = "status-indicator-dot offline";
@@ -389,60 +628,238 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkServerHealth();
   initializeData();
+  setInterval(checkServerHealth, 30000);
 
   // ==========================================
-  // 5. Validasi Sisi Klien
+  // 5. Validasi Masukan & Penanganan Galat Field-Level
   // ==========================================
-  function validateClientInputs() {
-    const errors = [];
-    document.querySelectorAll(".is-invalid").forEach((el) => el.classList.remove("is-invalid"));
+  function clearFieldError(fieldKey) {
+    const inputEl = fields[fieldKey];
+    if (!inputEl) return;
 
-    // Validasi Brand
-    if (!fields.brand.value.trim()) {
+    if (fieldKey === "brand") {
+      brandTrigger.classList.remove("is-invalid");
+    } else if (fieldKey === "model") {
+      modelTrigger.classList.remove("is-invalid");
+    } else {
+      inputEl.classList.remove("is-invalid");
+    }
+
+    const span = fieldErrorSpans[fieldKey];
+    if (span) {
+      span.textContent = "";
+      span.classList.add("hidden");
+    }
+  }
+
+  function setFieldError(fieldKey, message) {
+    const inputEl = fields[fieldKey];
+    if (!inputEl) return;
+
+    if (fieldKey === "brand") {
       brandTrigger.classList.add("is-invalid");
-      errors.push("Merek mobil (Brand) wajib dipilih.");
-    }
-
-    // Validasi Model
-    if (!fields.model.value.trim()) {
+    } else if (fieldKey === "model") {
       modelTrigger.classList.add("is-invalid");
-      errors.push("Model kendaraan wajib dipilih sesuai merek.");
+    } else {
+      inputEl.classList.add("is-invalid");
     }
 
-    // Validasi Tahun (1974 - 2024)
+    const span = fieldErrorSpans[fieldKey];
+    if (span) {
+      span.textContent = message;
+      span.classList.remove("hidden");
+    }
+  }
+
+  function clearAllErrors() {
+    Object.keys(fields).forEach(key => clearFieldError(key));
+  }
+
+  function validateClientInputs() {
+    clearAllErrors();
+    const errors = [];
+    let firstInvalidField = null;
+
+    function markInvalid(key, msg) {
+      setFieldError(key, msg);
+      errors.push(msg);
+      if (!firstInvalidField) {
+        firstInvalidField = key === "brand" ? brandTrigger : (key === "model" ? modelTrigger : fields[key]);
+      }
+    }
+
+    // 1. Validasi Brand
+    if (!fields.brand.value.trim()) {
+      markInvalid("brand", "Merek mobil (Brand) wajib dipilih.");
+    }
+
+    // 2. Validasi Model
+    if (!fields.model.value.trim()) {
+      markInvalid("model", "Model kendaraan wajib dipilih sesuai merek.");
+    }
+
+    // 3. Validasi Tahun (1974 - 2024)
     const yearVal = parseInt(fields.model_year.value, 10);
     if (isNaN(yearVal) || yearVal < 1974 || yearVal > 2024) {
-      fields.model_year.classList.add("is-invalid");
-      errors.push("Tahun pembuatan (model_year) harus berada dalam rentang 1974 s.d. 2024.");
+      markInvalid("model_year", "Tahun pembuatan harus berada dalam rentang 1974 s.d. 2024.");
     }
 
-    // Validasi Jarak Tempuh (0 - 405.000 mil)
+    // 4. Validasi Jarak Tempuh (0 - 405.000 mil)
     const milageVal = parseFloat(fields.milage.value);
     if (isNaN(milageVal) || milageVal < 0) {
-      fields.milage.classList.add("is-invalid");
-      errors.push("Jarak tempuh (milage) tidak boleh bernilai negatif.");
+      markInvalid("milage", "Jarak tempuh tidak boleh bernilai negatif.");
     } else if (milageVal > 405000) {
-      fields.milage.classList.add("is-invalid");
-      errors.push("Jarak tempuh (milage) melebihi batas wajar dataset pelatihan (maksimal 405.000 mil).");
+      markInvalid("milage", "Jarak tempuh melebihi batas wajar dataset (maksimal 405.000 mil).");
     }
 
-    // Validasi String Lainnya
+    // 5. Validasi Teks Lainnya
     const textFields = ["fuel_type", "engine", "transmission", "ext_col", "int_col", "accident"];
     textFields.forEach((key) => {
       const el = fields[key];
       if (!el.value || !el.value.trim()) {
-        el.classList.add("is-invalid");
         const labelText = el.closest(".form-field").querySelector(".field-label").textContent.replace("*", "").trim();
-        errors.push(`Atribut '${labelText}' wajib diisi.`);
+        markInvalid(key, `Kolom '${labelText}' wajib diisi.`);
       }
     });
+
+    if (firstInvalidField) {
+      firstInvalidField.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (typeof firstInvalidField.focus === "function") firstInvalidField.focus();
+    }
 
     return errors;
   }
 
   // ==========================================
-  // 6. Tampilan Hasil & Galat
+  // 6. Animasi Count-Up & Tampilan Hasil
   // ==========================================
+  function animateCountUp(targetVal, duration = 650) {
+    const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    
+    const formattedTarget = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(targetVal);
+
+    if (prefersReducedMotion) {
+      priceHeadline.textContent = `${formattedTarget} USD`;
+      return;
+    }
+
+    const startTime = performance.now();
+    const startVal = 0;
+
+    function step(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Easing out cubic
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = startVal + (targetVal - startVal) * easeOut;
+
+      const formatted = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(current);
+
+      priceHeadline.textContent = `${formatted} USD`;
+
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        priceHeadline.textContent = `${formattedTarget} USD`;
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  function displayPredictionResult(resData, payload) {
+    lastPredictionResult = {
+      price: resData.predicted_price,
+      payload: payload,
+      price_low: resData.price_low,
+      price_high: resData.price_high,
+      inference_ms: resData.inference_ms
+    };
+
+    // 1. Animasi count-up harga USD
+    animateCountUp(resData.predicted_price);
+
+    // 2. Durasi inferensi
+    if (resData.inference_ms !== undefined && resData.inference_ms !== null) {
+      inferenceTimeBadge.textContent = `${resData.inference_ms} ms`;
+      inferenceTimeBadge.classList.remove("hidden");
+    } else {
+      inferenceTimeBadge.classList.add("hidden");
+    }
+
+    // 3. Ringkasan Chips Spesifikasi
+    specsChipsRow.innerHTML = "";
+    const formattedMileage = new Intl.NumberFormat("en-US").format(payload.milage);
+    const chips = [
+      `${payload.model_year}`,
+      `${payload.brand} ${payload.model}`,
+      `${formattedMileage} mil`,
+      `${payload.fuel_type}`,
+      `${payload.transmission}`,
+      `${payload.ext_col} / ${payload.int_col}`
+    ];
+
+    chips.forEach(text => {
+      const chip = document.createElement("span");
+      chip.className = "spec-chip";
+      chip.textContent = text;
+      specsChipsRow.appendChild(chip);
+    });
+
+    // 4. Rentang Harga Probabilitas Regresi (Tampil jika price_low dan price_high tersedia)
+    if (resData.price_low !== null && resData.price_high !== null && resData.price_low !== undefined && resData.price_high !== undefined) {
+      const fmtLow = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(resData.price_low);
+      const fmtHigh = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(resData.price_high);
+      rangeValLow.textContent = fmtLow;
+      rangeValHigh.textContent = fmtHigh;
+      priceRangeWrapper.classList.remove("hidden");
+    } else {
+      priceRangeWrapper.classList.add("hidden");
+    }
+
+    valuationIdle.classList.add("hidden");
+    valuationResult.classList.remove("hidden");
+    errorPanel.classList.add("hidden");
+
+    // Scroll ke panel hasil jika di layar kecil
+    if (window.innerWidth <= 980) {
+      document.getElementById("valuation-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  // Tombol Salin Hasil
+  if (btnCopyResult) {
+    btnCopyResult.addEventListener("click", async () => {
+      if (!lastPredictionResult) return;
+      const fmtPrice = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(lastPredictionResult.price);
+      const p = lastPredictionResult.payload;
+      const fmtMil = new Intl.NumberFormat("en-US").format(p.milage);
+      const textToCopy = `Estimasi Harga Mobil: ${fmtPrice} USD\nKendaraan: ${p.model_year} ${p.brand} ${p.model}\nJarak Tempuh: ${fmtMil} mil | Transmisi: ${p.transmission}\nBahan Bakar: ${p.fuel_type} | Kondisi: ${p.accident}\nSumber: Used Car Price Estimator (Kelompok 2 - Universitas Bengkulu)`;
+
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        btnCopyResult.classList.add("copied");
+        copyBtnText.textContent = "Tersalin ✓";
+        setTimeout(() => {
+          btnCopyResult.classList.remove("copied");
+          copyBtnText.textContent = "Salin Hasil";
+        }, 2000);
+      } catch (err) {
+        console.error("Gagal menyalin:", err);
+      }
+    });
+  }
+
   function showLoading() {
     loadingSpinner.classList.remove("hidden");
     btnLabel.textContent = "Menghitung Estimasi...";
@@ -454,32 +871,6 @@ document.addEventListener("DOMContentLoaded", () => {
     loadingSpinner.classList.add("hidden");
     btnLabel.textContent = "Hitung Estimasi Harga";
     btnSubmit.disabled = false;
-  }
-
-  function displayPredictionResult(price, payload) {
-    // Format mata uang satu baris konsisten
-    const formattedPrice = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(price);
-
-    // Pastikan nominal dan USD pada satu baris
-    priceHeadline.textContent = `${formattedPrice} USD`;
-
-    // Ringkasan spesifikasi kendaraan
-    const formattedMileage = new Intl.NumberFormat("en-US").format(payload.milage);
-    specsSummaryBox.textContent = `${payload.model_year} ${payload.brand} ${payload.model} • ${formattedMileage} mil • ${payload.transmission}`;
-
-    valuationIdle.classList.add("hidden");
-    valuationResult.classList.remove("hidden");
-    errorPanel.classList.add("hidden");
-
-    // Scroll ke kartu jika pada layar mobile
-    if (window.innerWidth <= 980) {
-      document.getElementById("valuation-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
   }
 
   function showError(title, message, details = []) {
@@ -511,14 +902,14 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     hideError();
 
-    // Validasi klien
-    const validationErrors = validateClientInputs();
-    if (validationErrors.length > 0) {
-      showError("Periksa Data Masukan", "Terdapat data yang belum sesuai ketentuan:", validationErrors);
+    // 1. Validasi Sisi Klien
+    const clientErrors = validateClientInputs();
+    if (clientErrors.length > 0) {
+      showError("Periksa Data Masukan", "Terdapat data yang belum sesuai ketentuan:", clientErrors);
       return;
     }
 
-    // Susun Payload JSON sesuai skema Pydantic
+    // 2. Susun Payload JSON
     const payload = {
       model_year: parseInt(fields.model_year.value, 10),
       milage: parseFloat(fields.milage.value),
@@ -547,10 +938,29 @@ document.addEventListener("DOMContentLoaded", () => {
       hideLoading();
 
       if (response.ok && data.success) {
-        displayPredictionResult(data.predicted_price, payload);
+        displayPredictionResult(data, payload);
       } else if (response.status === 422) {
         const details = data.details || [data.message || "Data masukan tidak memenuhi validasi backend."];
-        showError("Validasi Backend Ditolak (HTTP 422)", "Kombinasi atau rentang data tidak valid:", details);
+        
+        // Petakan galat ke field terkait
+        let firstScrolled = false;
+        details.forEach(errStr => {
+          const colonIdx = errStr.indexOf(":");
+          if (colonIdx > 0) {
+            const fieldName = errStr.substring(0, colonIdx).trim();
+            const errMsg = errStr.substring(colonIdx + 1).trim();
+            if (fields[fieldName]) {
+              setFieldError(fieldName, errMsg);
+              if (!firstScrolled) {
+                const target = fieldName === "brand" ? brandTrigger : (fieldName === "model" ? modelTrigger : fields[fieldName]);
+                target.scrollIntoView({ behavior: "smooth", block: "center" });
+                firstScrolled = true;
+              }
+            }
+          }
+        });
+
+        showError("Validasi Ditolak (HTTP 422)", "Kombinasi data tidak valid:", details);
       } else {
         showError("Gagal Menghitung Prediksi", data.detail || data.message || "Terjadi kesalahan pada server saat kalkulasi harga.");
       }

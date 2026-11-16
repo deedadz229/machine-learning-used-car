@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="15">
+  <title>Status Server & Model | Used Car Price Estimator</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230F172A'><path d='M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2'/><circle cx='7' cy='17' r='2'/><circle cx='17' cy='17' r='2'/></svg>">
+  <style>
+    .health-container {
+      max-width: 860px;
+      margin: 36px auto;
+      padding: 0 20px;
+    }
+    .health-card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow-card);
+      color: var(--text-primary);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .status-badge-hero {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      margin-bottom: 20px;
+      transition: background-color 0.2s ease;
+    }
+    .status-badge-hero.ok {
+      background-color: var(--color-success-bg);
+      color: var(--color-success);
+      border: 1px solid var(--color-success-border);
+    }
+    .status-badge-hero.degraded {
+      background-color: var(--color-danger-bg);
+      color: var(--color-danger);
+      border: 1px solid var(--color-danger-border);
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-badge-hero.ok .pulse-dot {
+      background-color: #10b981;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      animation: pulse-green 2s infinite;
+    }
+    .status-badge-hero.degraded .pulse-dot {
+      background-color: #ef4444;
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      animation: pulse-red 2s infinite;
+    }
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes pulse-red {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .info-item {
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 18px;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .info-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .info-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      word-break: break-all;
+    }
+    .health-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-color);
+    }
+    .health-actions a,
+    .health-actions button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+      padding: 11px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      transition: all 0.15s ease;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .auto-refresh-notice {
+      margin-top: 20px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Navigasi -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <svg class="header-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2"/>
+          <circle cx="7" cy="17" r="2"/>
+          <path d="M9 17h6"/>
+          <circle cx="17" cy="17" r="2"/>
+        </svg>
+        <span class="header-title">Used Car Price Estimator</span>
+      </div>
+
+      <div class="header-right-group">
+        <div class="header-meta">
+          <span class="meta-item">Status Layanan & Model</span>
+          <span class="meta-dot">&bull;</span>
+          <span class="meta-item">Kelompok 2</span>
+        </div>
+
+        <!-- Dark Mode Toggle Button -->
+        <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Ganti tema warna (terang/gelap)" title="Ganti tema warna">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Health Dashboard Content -->
+  <main class="health-container">
+    <div class="health-card">
+      <div id="status-badge" class="status-badge-hero ok">
+        <span class="pulse-dot"></span>
+        <span id="status-badge-text">Memeriksa status sistem...</span>
+      </div>
+
+      <h1 class="page-heading" style="font-size: 1.5rem; margin-bottom: 8px; color: var(--text-primary);">Kesiapan Backend & Estimator Machine Learning</h1>
+      <p class="page-subheading" id="status-message" style="margin-bottom: 24px; color: var(--text-muted);">
+        Memuat telemetri server dan status model...
+      </p>
+
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">Status Model</div>
+          <div class="info-value" id="val-model-loaded">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Tipe Estimator</div>
+          <div class="info-value" id="val-model-type">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Berkas Model</div>
+          <div class="info-value" id="val-model-file" style="font-size: 0.88rem;">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Jumlah Fitur</div>
+          <div class="info-value" id="val-n-features">10 Fitur Wajib</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Merek Terdaftar</div>
+          <div class="info-value" id="val-brands">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Versi Scikit-Learn</div>
+          <div class="info-value" id="val-sklearn">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Versi Python</div>
+          <div class="info-value" id="val-python">-</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">Uptime Server</div>
+          <div class="info-value" id="val-uptime">-</div>
+        </div>
+      </div>
+
+      <!-- Navigasi Aksi Lengkap & Rapi -->
+      <div class="health-actions">
+        <a href="/" class="btn-primary" title="Kembali ke halaman utama aplikasi prediksi">&larr; Buka Aplikasi Web</a>
+        <a href="/docs" class="btn-secondary" title="Buka dokumentasi interaktif Swagger UI">Dokumentasi Swagger UI</a>
+        <a href="/redoc" class="btn-secondary" title="Buka dokumentasi alternatif ReDoc">Dokumentasi ReDoc</a>
+        <a href="/health?format=json" class="btn-secondary" target="_blank" rel="noopener" title="Lihat respons mentah JSON">Data Mentah (JSON)</a>
+        <button type="button" class="btn-secondary" id="btn-refresh" onclick="manualRefresh()" title="Muat ulang telemetri sekarang">
+          <svg id="refresh-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          <span id="refresh-label">Segarkan Status</span>
+        </button>
+      </div>
+
+      <div class="auto-refresh-notice">
+        <span>⏱️ Halaman diperbarui otomatis setiap 15 detik. Terakhir diperiksa: <strong id="val-timestamp">-</strong></span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Theme Management Sync
+    const themeToggleBtn = document.getElementById("theme-toggle");
+    const sunIcon = themeToggleBtn ? themeToggleBtn.querySelector(".sun-icon") : null;
+    const moonIcon = themeToggleBtn ? themeToggleBtn.querySelector(".moon-icon") : null;
+
+    function applyTheme(isDark) {
+      if (isDark) {
+        document.body.classList.add("dark-mode");
+        document.body.classList.remove("light-mode");
+        document.documentElement.setAttribute("data-theme", "dark");
+        if (sunIcon) sunIcon.classList.add("hidden");
+        if (moonIcon) moonIcon.classList.remove("hidden");
+      } else {
+        document.body.classList.remove("dark-mode");
+        document.body.classList.add("light-mode");
+        document.documentElement.setAttribute("data-theme", "light");
+        if (sunIcon) sunIcon.classList.remove("hidden");
+        if (moonIcon) moonIcon.classList.add("hidden");
+      }
+      try {
+        localStorage.setItem("app_theme", isDark ? "dark" : "light");
+      } catch (e) {}
+    }
+
+    function initTheme() {
+      let savedTheme = null;
+      try {
+        savedTheme = localStorage.getItem("app_theme");
+      } catch (e) {}
+      const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
+      applyTheme(isDark);
+    }
+
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener("click", () => {
+        const isCurrentlyDark = document.body.classList.contains("dark-mode");
+        applyTheme(!isCurrentlyDark);
+      });
+    }
+    initTheme();
+
+    // Health Telemetry Fetcher
+    async function loadHealthData() {
+      try {
+        const res = await fetch("/health?format=json");
+        const data = await res.json();
+        
+        const badge = document.getElementById("status-badge");
+        const badgeText = document.getElementById("status-badge-text");
+        const statusMsg = document.getElementById("status-message");
+
+        if (data.model_loaded && data.status === "ok") {
+          badge.className = "status-badge-hero ok";
+          badgeText.textContent = "Sistem Operasional (Sehat)";
+          statusMsg.textContent = data.message || "Seluruh subsistem dan pipeline model Machine Learning siap menerima inferensi.";
+        } else {
+          badge.className = "status-badge-hero degraded";
+          badgeText.textContent = "Layanan Mengalami Degradasi";
+          statusMsg.textContent = data.message || "Model Machine Learning belum siap atau gagal dimuat.";
+        }
+
+        document.getElementById("val-model-loaded").textContent = data.model_loaded ? "Tersedia (Ready)" : "Tidak Tersedia";
+        document.getElementById("val-model-type").textContent = data.model_type || "RandomForestRegressor";
+        document.getElementById("val-model-file").textContent = data.model_file || "used_car_price_model.joblib";
+        document.getElementById("val-n-features").textContent = (data.n_features || 10) + " Fitur Wajib";
+        document.getElementById("val-brands").textContent = (data.total_brands_available || 57) + " Merek";
+        document.getElementById("val-sklearn").textContent = data.sklearn_version || "1.6.1";
+        document.getElementById("val-python").textContent = data.python_version || "-";
+        
+        const uptimeSec = data.uptime_seconds || 0;
+        const uptimeFormatted = uptimeSec > 60 
+          ? `${Math.floor(uptimeSec / 60)}m ${Math.floor(uptimeSec % 60)}s` 
+          : `${uptimeSec.toFixed(1)}s`;
+        document.getElementById("val-uptime").textContent = uptimeFormatted;
+        
+        document.getElementById("val-timestamp").textContent = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+      } catch (err) {
+        const badge = document.getElementById("status-badge");
+        badge.className = "status-badge-hero degraded";
+        document.getElementById("status-badge-text").textContent = "Koneksi Backend Terputus";
+        document.getElementById("status-message").textContent = "Tidak dapat menghubungi server lokal di port 8000.";
+      }
+    }
+
+    async function manualRefresh() {
+      const icon = document.getElementById("refresh-icon");
+      const label = document.getElementById("refresh-label");
+      if (icon) icon.style.transform = "rotate(360deg)";
+      if (label) label.textContent = "Memperbarui...";
+      await loadHealthData();
+      setTimeout(() => {
+        if (icon) icon.style.transform = "none";
+        if (label) label.textContent = "Segarkan Status";
+      }, 500);
+    }
+
+    loadHealthData();
+  </script>
+</body>
+</html>
