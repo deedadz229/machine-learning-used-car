@@ -4,6 +4,9 @@
  */
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Exchange Rate Reference Constant: 1 USD ≈ Rp 16.000
+  const USD_TO_IDR_RATE = 16000;
+
   // Theme Management (Dark / Light Mode)
   const themeToggleBtn = document.getElementById("theme-toggle");
   const sunIcon = themeToggleBtn ? themeToggleBtn.querySelector(".sun-icon") : null;
@@ -13,9 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let savedTheme = null;
     try {
       savedTheme = localStorage.getItem("app_theme");
-    } catch (e) {
-      // localStorage might be disabled
-    }
+    } catch (e) {}
 
     const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     const isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
@@ -52,20 +53,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initTheme();
 
-  // Element References
+  // Form Elements
   const form = document.getElementById("prediction-form");
   const btnSubmit = document.getElementById("btn-submit");
   const btnReset = document.getElementById("btn-reset");
   const btnLabel = document.getElementById("btn-label");
   const loadingSpinner = document.getElementById("loading-spinner");
 
-  // Valuation Panel References
+  // Valuation Panel References (Dual Currency: IDR + USD)
   const valuationIdle = document.getElementById("valuation-idle");
   const valuationResult = document.getElementById("valuation-result");
-  const priceHeadline = document.getElementById("price-headline");
+  const priceHeadlineIdr = document.getElementById("price-headline-idr");
+  const priceHeadlineUsd = document.getElementById("price-headline-usd");
   const inferenceTimeBadge = document.getElementById("inference-time-badge");
   const specsChipsRow = document.getElementById("specs-chips-row");
   const priceRangeWrapper = document.getElementById("price-range-wrapper");
+  const rangeIdrLow = document.getElementById("range-idr-low");
+  const rangeIdrHigh = document.getElementById("range-idr-high");
   const rangeValLow = document.getElementById("range-val-low");
   const rangeValHigh = document.getElementById("range-val-high");
   const btnCopyResult = document.getElementById("btn-copy-result");
@@ -76,6 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const errorTitle = document.getElementById("error-title");
   const errorMessage = document.getElementById("error-message");
   const errorDetailsList = document.getElementById("error-details-list");
+  const btnRetry = document.getElementById("btn-retry");
 
   // Server Status References
   const statusDot = document.getElementById("status-dot");
@@ -86,7 +91,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const presetAudi = document.getElementById("preset-audi");
   const presetFord = document.getElementById("preset-ford");
 
-  // Form Fields
+  // Progress Indicators
+  const progressFill = document.getElementById("progress-fill");
+  const progressTextEl = document.getElementById("progress-text");
+  const stepBadge1 = document.getElementById("step-badge-1");
+  const stepBadge2 = document.getElementById("step-badge-2");
+
+  // Form Field References
   const fields = {
     brand: document.getElementById("brand"),
     model: document.getElementById("model"),
@@ -100,7 +111,6 @@ document.addEventListener("DOMContentLoaded", () => {
     accident: document.getElementById("accident")
   };
 
-  // Field Error Spans
   const fieldErrorSpans = {
     brand: document.getElementById("err-brand"),
     model: document.getElementById("err-model"),
@@ -131,20 +141,158 @@ document.addEventListener("DOMContentLoaded", () => {
   const modelOptionsList = document.getElementById("model-options-list");
   const modelFieldHint = document.getElementById("model-field-hint");
 
-  // State: Mapping Brand -> Models & Categories Metadata
+  // Application State
   let brandModelsMap = {};
   let categoriesData = {};
   let currentBrand = "";
   let currentModel = "";
   let lastPredictionResult = null;
+  let activePresetId = null;
 
-  // Active keyboard highlight indices for accessible comboboxes
   let brandHighlightIndex = -1;
   let modelHighlightIndex = -1;
 
-  // ==========================================
-  // 1. Inisialisasi Data & Cascading Combobox
-  // ==========================================
+  // Form progress tracking
+  const section1Fields = ["brand", "model", "model_year", "milage"];
+  const section2Fields = ["fuel_type", "engine", "transmission", "ext_col", "int_col", "accident"];
+  const allFieldKeys = [...section1Fields, ...section2Fields];
+
+  function getFieldValue(key) {
+    const el = fields[key];
+    if (!el) return "";
+    return (el.value || "").trim();
+  }
+
+  function updateFormProgress() {
+    let filledCount = 0;
+    allFieldKeys.forEach(key => {
+      if (getFieldValue(key)) filledCount++;
+    });
+
+    const pct = Math.round((filledCount / allFieldKeys.length) * 100);
+    if (progressFill) progressFill.style.width = pct + "%";
+    if (progressTextEl) progressTextEl.textContent = `${filledCount} / ${allFieldKeys.length} Bidang Terisi`;
+
+    const s1Done = section1Fields.every(k => !!getFieldValue(k));
+    const s2Done = section2Fields.every(k => !!getFieldValue(k));
+
+    if (stepBadge1) {
+      if (s1Done) {
+        stepBadge1.classList.add("is-complete");
+        stepBadge1.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+      } else {
+        stepBadge1.classList.remove("is-complete");
+        stepBadge1.textContent = "1";
+      }
+    }
+
+    if (stepBadge2) {
+      if (s2Done) {
+        stepBadge2.classList.add("is-complete");
+        stepBadge2.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+      } else {
+        stepBadge2.classList.remove("is-complete");
+        stepBadge2.textContent = "2";
+      }
+    }
+  }
+
+  function attachProgressListeners() {
+    ["model_year", "milage", "engine", "transmission", "ext_col", "int_col"].forEach(key => {
+      const el = fields[key];
+      if (el) {
+        el.addEventListener("input", updateFormProgress);
+        el.addEventListener("change", updateFormProgress);
+      }
+    });
+
+    ["fuel_type", "accident"].forEach(key => {
+      const el = fields[key];
+      if (el) el.addEventListener("change", updateFormProgress);
+    });
+  }
+
+  // Toast Notification
+  function showToast(message, duration = 2500) {
+    const existing = document.querySelector(".toast-notification");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.className = "toast-notification";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add("toast-out");
+      toast.addEventListener("animationend", () => toast.remove());
+    }, duration);
+  }
+
+  // Bespoke Success Particle Burst (British Racing Green, Sage, Cognac, Gold)
+  function spawnSuccessParticles(originEl) {
+    const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) return;
+
+    const rect = originEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const container = document.createElement("div");
+    container.className = "success-particle-container";
+    document.body.appendChild(container);
+
+    const colors = ["#10b981", "#34d399", "#b45309", "#d97706", "#0b3821", "#fbbf24"];
+    const count = 22;
+
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div");
+      p.className = "success-particle";
+      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+      const dist = 45 + Math.random() * 65;
+      const tx = Math.cos(angle) * dist;
+      const ty = Math.sin(angle) * dist - 18;
+      p.style.left = cx + "px";
+      p.style.top = cy + "px";
+      p.style.backgroundColor = colors[i % colors.length];
+      p.style.setProperty("--tx", tx + "px");
+      p.style.setProperty("--ty", ty + "px");
+      p.style.animationDelay = (Math.random() * 0.08) + "s";
+      container.appendChild(p);
+    }
+
+    setTimeout(() => container.remove(), 1200);
+  }
+
+  // Currency Helpers
+  function formatUSD(val) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(val) + " USD";
+  }
+
+  function formatIDRRaw(val) {
+    return new Intl.NumberFormat("id-ID", {
+      maximumFractionDigits: 0
+    }).format(Math.round(val));
+  }
+
+  function formatCompactIDR(val) {
+    const rounded = Math.round(val);
+    if (rounded >= 1000000000) {
+      return "Rp " + (rounded / 1000000000).toFixed(2).replace(".", ",") + " M";
+    }
+    if (rounded >= 1000000) {
+      return "Rp " + (rounded / 1000000).toFixed(1).replace(".", ",") + " Jt";
+    }
+    return "Rp " + formatIDRRaw(rounded);
+  }
+
+  // Data Initialization
   async function initializeData() {
     try {
       const [brandRes, catRes] = await Promise.all([
@@ -171,11 +319,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Isi seluruh datalist dan select dari categories.json
   function populateDynamicCategories(cat) {
     if (!cat) return;
 
-    // 1. Fuel Type Select
     if (cat.fuel_type && fields.fuel_type) {
       const select = fields.fuel_type;
       const currentVal = select.value;
@@ -201,7 +347,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentVal) select.value = currentVal;
     }
 
-    // 2. Accident Select
     if (cat.accident && fields.accident) {
       const select = fields.accident;
       const currentVal = select.value;
@@ -222,25 +367,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (currentVal) select.value = currentVal;
     }
 
-    // 3. Engine Datalist
-    if (cat.engine) {
-      populateDatalist("engine-presets", cat.engine);
-    }
-
-    // 4. Transmission Datalist
-    if (cat.transmission) {
-      populateDatalist("trans-presets", cat.transmission);
-    }
-
-    // 5. Exterior Color Datalist
-    if (cat.ext_col) {
-      populateDatalist("ext-color-presets", cat.ext_col);
-    }
-
-    // 6. Interior Color Datalist
-    if (cat.int_col) {
-      populateDatalist("int-color-presets", cat.int_col);
-    }
+    if (cat.engine) populateDatalist("engine-presets", cat.engine);
+    if (cat.transmission) populateDatalist("trans-presets", cat.transmission);
+    if (cat.ext_col) populateDatalist("ext-color-presets", cat.ext_col);
+    if (cat.int_col) populateDatalist("int-color-presets", cat.int_col);
   }
 
   function populateDatalist(datalistId, items) {
@@ -254,7 +384,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Isi opsi daftar merek
   function populateBrandList(brands) {
     brandOptionsList.innerHTML = "";
     brandHighlightIndex = -1;
@@ -285,7 +414,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Isi opsi daftar model berdasarkan merek terpilih
   function populateModelList(models) {
     modelOptionsList.innerHTML = "";
     modelHighlightIndex = -1;
@@ -316,7 +444,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Fungsi Pilih Merek (Brand)
   function selectBrand(brandName) {
     currentBrand = brandName;
     fields.brand.value = brandName;
@@ -325,26 +452,23 @@ document.addEventListener("DOMContentLoaded", () => {
     clearFieldError("brand");
     closeBrandPanel();
 
-    // Reset pilihan model sebelumnya ketika brand berubah
     currentModel = "";
     fields.model.value = "";
     modelSelectedText.textContent = `Pilih model ${brandName}...`;
     modelSelectedText.classList.add("placeholder");
     clearFieldError("model");
 
-    // Aktifkan dropdown model
     modelTrigger.disabled = false;
     modelTrigger.classList.remove("is-disabled");
 
-    // Muat seluruh model yang sah untuk brand ini
     const modelsForBrand = brandModelsMap[brandName] || [];
     populateModelList(modelsForBrand);
     modelFieldHint.textContent = `Tersedia ${modelsForBrand.length} model resmi untuk merek ${brandName}.`;
 
     hideError();
+    updateFormProgress();
   }
 
-  // Fungsi Pilih Model
   function selectModel(modelName) {
     currentModel = modelName;
     fields.model.value = modelName;
@@ -353,9 +477,9 @@ document.addEventListener("DOMContentLoaded", () => {
     clearFieldError("model");
     closeModelPanel();
     hideError();
+    updateFormProgress();
   }
 
-  // Panel Open/Close Handlers dengan ARIA
   function openBrandPanel() {
     closeModelPanel();
     brandPanel.classList.remove("hidden");
@@ -394,7 +518,6 @@ document.addEventListener("DOMContentLoaded", () => {
     modelHighlightIndex = -1;
   }
 
-  // Event Listeners Dropdown Triggers
   brandTrigger.addEventListener("click", (e) => {
     e.stopPropagation();
     if (brandPanel.classList.contains("hidden")) {
@@ -414,7 +537,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Search Filter Brand
   brandSearch.addEventListener("input", (e) => {
     const query = e.target.value.toLowerCase().trim();
     const allBrands = Object.keys(brandModelsMap).sort();
@@ -422,7 +544,6 @@ document.addEventListener("DOMContentLoaded", () => {
     populateBrandList(filtered);
   });
 
-  // Search Filter Model
   modelSearch.addEventListener("input", (e) => {
     const query = e.target.value.toLowerCase().trim();
     const allModels = brandModelsMap[currentBrand] || [];
@@ -430,7 +551,6 @@ document.addEventListener("DOMContentLoaded", () => {
     populateModelList(filtered);
   });
 
-  // Navigasi Keyboard Aksesibel pada Combobox Brand
   brandSearch.addEventListener("keydown", (e) => {
     const items = brandOptionsList.querySelectorAll(".combobox-item");
     if (items.length === 0) return;
@@ -455,7 +575,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Navigasi Keyboard Aksesibel pada Combobox Model
   modelSearch.addEventListener("keydown", (e) => {
     const items = modelOptionsList.querySelectorAll(".combobox-item");
     if (items.length === 0) return;
@@ -492,17 +611,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Cegah klik search panel dari menutup panel
   brandPanel.addEventListener("click", (e) => e.stopPropagation());
   modelPanel.addEventListener("click", (e) => e.stopPropagation());
 
-  // Klik di luar menutup dropdown
   document.addEventListener("click", () => {
     closeBrandPanel();
     closeModelPanel();
   });
 
-  // Escape key global
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeBrandPanel();
@@ -510,9 +626,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // ==========================================
-  // 2. Preset Data Otomatis
-  // ==========================================
+  // Preset Specifications
   const samplePresets = {
     palisade: {
       brand: "Hyundai",
@@ -521,10 +635,10 @@ document.addEventListener("DOMContentLoaded", () => {
       milage: 34742,
       fuel_type: "Gasoline",
       engine: "3.8L V6 24V GDI DOHC",
-      transmission: "8-Speed Automatic",
-      ext_col: "Moonlight Cloud",
-      int_col: "Gray",
-      accident: "At least 1 accident or damage reported"
+      transmission: "8-Speed Automatic with SHIFTRONIC",
+      ext_col: "Hyper White",
+      int_col: "Black",
+      accident: "None reported"
     },
     audi: {
       brand: "Audi",
@@ -552,7 +666,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  function applyPreset(data) {
+  function applyPreset(data, presetId) {
+    document.querySelectorAll(".preset-btn").forEach(btn => btn.classList.remove("is-active"));
+    const activeBtn = document.getElementById(`preset-${presetId}`);
+    if (activeBtn) activeBtn.classList.add("is-active");
+    activePresetId = presetId;
+
     selectBrand(data.brand);
     selectModel(data.model);
 
@@ -567,19 +686,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     clearAllErrors();
     hideError();
+    updateFormProgress();
+
+    showToast(`Data contoh ${data.brand} ${data.model.split(" ")[0]} dimuat`);
   }
 
-  if (presetPalisade) presetPalisade.addEventListener("click", () => applyPreset(samplePresets.palisade));
-  if (presetAudi) presetAudi.addEventListener("click", () => applyPreset(samplePresets.audi));
-  if (presetFord) presetFord.addEventListener("click", () => applyPreset(samplePresets.ford));
+  if (presetPalisade) presetPalisade.addEventListener("click", () => applyPreset(samplePresets.palisade, "palisade"));
+  if (presetAudi) presetAudi.addEventListener("click", () => applyPreset(samplePresets.audi, "audi"));
+  if (presetFord) presetFord.addEventListener("click", () => applyPreset(samplePresets.ford, "ford"));
 
-  // ==========================================
-  // 3. Reset Formulir
-  // ==========================================
+  // Reset Form
   btnReset.addEventListener("click", () => {
     form.reset();
     currentBrand = "";
     currentModel = "";
+    activePresetId = null;
     fields.brand.value = "";
     fields.model.value = "";
 
@@ -594,45 +715,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
     clearAllErrors();
     
-    // Kembalikan ke state idle
     valuationResult.classList.add("hidden");
     valuationIdle.classList.remove("hidden");
     hideError();
+    updateFormProgress();
+
+    document.querySelectorAll(".preset-btn").forEach(btn => btn.classList.remove("is-active"));
+
+    showToast("Formulir berhasil direset");
   });
 
-  // ==========================================
-  // 4. Server Health Check & Polling (30s)
-  // ==========================================
+  // Server Health Check
   async function checkServerHealth() {
     try {
       const res = await fetch("/health?format=json");
       if (res.ok) {
         const data = await res.json();
         if (data.model_loaded) {
-          statusDot.className = "status-indicator-dot online";
+          if (statusDot) statusDot.className = "status-indicator-dot online";
           const modelName = data.model_type || "RandomForest";
-          statusText.textContent = `Backend Siap (${data.total_brands_available || 57} merek • ${modelName})`;
+          if (statusText) statusText.textContent = `Backend Siap (${data.total_brands_available || 57} merek \u2022 ${modelName})`;
         } else {
-          statusDot.className = "status-indicator-dot offline";
-          statusText.textContent = "Model Machine Learning belum siap";
+          if (statusDot) statusDot.className = "status-indicator-dot offline";
+          if (statusText) statusText.textContent = "Model Machine Learning belum siap";
         }
       } else {
-        statusDot.className = "status-indicator-dot offline";
-        statusText.textContent = "Status Backend Degradasi (503)";
+        if (statusDot) statusDot.className = "status-indicator-dot offline";
+        if (statusText) statusText.textContent = "Status Backend Degradasi (503)";
       }
     } catch (err) {
-      statusDot.className = "status-indicator-dot offline";
-      statusText.textContent = "Backend tidak terhubung (port 8000)";
+      if (statusDot) statusDot.className = "status-indicator-dot offline";
+      if (statusText) statusText.textContent = "Backend tidak terhubung (port 8000)";
     }
   }
 
   checkServerHealth();
   initializeData();
+  attachProgressListeners();
   setInterval(checkServerHealth, 30000);
 
-  // ==========================================
-  // 5. Validasi Masukan & Penanganan Galat Field-Level
-  // ==========================================
+  // Field Validation
   function clearFieldError(fieldKey) {
     const inputEl = fields[fieldKey];
     if (!inputEl) return;
@@ -688,23 +810,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // 1. Validasi Brand
     if (!fields.brand.value.trim()) {
       markInvalid("brand", "Merek mobil (Brand) wajib dipilih.");
     }
 
-    // 2. Validasi Model
     if (!fields.model.value.trim()) {
       markInvalid("model", "Model kendaraan wajib dipilih sesuai merek.");
     }
 
-    // 3. Validasi Tahun (1974 - 2024)
     const yearVal = parseInt(fields.model_year.value, 10);
     if (isNaN(yearVal) || yearVal < 1974 || yearVal > 2024) {
       markInvalid("model_year", "Tahun pembuatan harus berada dalam rentang 1974 s.d. 2024.");
     }
 
-    // 4. Validasi Jarak Tempuh (0 - 405.000 mil)
     const milageVal = parseFloat(fields.milage.value);
     if (isNaN(milageVal) || milageVal < 0) {
       markInvalid("milage", "Jarak tempuh tidak boleh bernilai negatif.");
@@ -712,7 +830,6 @@ document.addEventListener("DOMContentLoaded", () => {
       markInvalid("milage", "Jarak tempuh melebihi batas wajar dataset (maksimal 405.000 mil).");
     }
 
-    // 5. Validasi Teks Lainnya
     const textFields = ["fuel_type", "engine", "transmission", "ext_col", "int_col", "accident"];
     textFields.forEach((key) => {
       const el = fields[key];
@@ -730,47 +847,39 @@ document.addEventListener("DOMContentLoaded", () => {
     return errors;
   }
 
-  // ==========================================
-  // 6. Animasi Count-Up & Tampilan Hasil
-  // ==========================================
-  function animateCountUp(targetVal, duration = 650) {
+  // Dual Currency Count-Up Animation (IDR + USD Simultaneous)
+  function animateDualCountUp(targetUSD, targetIDR, duration = 700) {
     const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     
-    const formattedTarget = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(targetVal);
+    const finalFormattedIDR = formatIDRRaw(targetIDR);
+    const finalFormattedUSD = formatUSD(targetUSD);
 
     if (prefersReducedMotion) {
-      priceHeadline.textContent = `${formattedTarget} USD`;
+      priceHeadlineIdr.textContent = finalFormattedIDR;
+      priceHeadlineUsd.textContent = finalFormattedUSD;
       return;
     }
 
     const startTime = performance.now();
-    const startVal = 0;
+    const startUSD = 0;
+    const startIDR = 0;
 
     function step(currentTime) {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // Easing out cubic
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      const current = startVal + (targetVal - startVal) * easeOut;
 
-      const formatted = new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      }).format(current);
+      const currentUSD = startUSD + (targetUSD - startUSD) * easeOut;
+      const currentIDR = startIDR + (targetIDR - startIDR) * easeOut;
 
-      priceHeadline.textContent = `${formatted} USD`;
+      priceHeadlineIdr.textContent = formatIDRRaw(currentIDR);
+      priceHeadlineUsd.textContent = formatUSD(currentUSD);
 
       if (progress < 1) {
         requestAnimationFrame(step);
       } else {
-        priceHeadline.textContent = `${formattedTarget} USD`;
+        priceHeadlineIdr.textContent = finalFormattedIDR;
+        priceHeadlineUsd.textContent = finalFormattedUSD;
       }
     }
 
@@ -778,18 +887,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function displayPredictionResult(resData, payload) {
+    const predictedUSD = resData.predicted_price;
+    const predictedIDR = Math.round(predictedUSD * USD_TO_IDR_RATE);
+
     lastPredictionResult = {
-      price: resData.predicted_price,
+      priceUSD: predictedUSD,
+      priceIDR: predictedIDR,
       payload: payload,
       price_low: resData.price_low,
       price_high: resData.price_high,
       inference_ms: resData.inference_ms
     };
 
-    // 1. Animasi count-up harga USD
-    animateCountUp(resData.predicted_price);
+    // 1. Dual Count-up: IDR & USD
+    animateDualCountUp(predictedUSD, predictedIDR);
 
-    // 2. Durasi inferensi
+    // 2. Latency Pill
     if (resData.inference_ms !== undefined && resData.inference_ms !== null) {
       inferenceTimeBadge.textContent = `${resData.inference_ms} ms`;
       inferenceTimeBadge.classList.remove("hidden");
@@ -797,7 +910,7 @@ document.addEventListener("DOMContentLoaded", () => {
       inferenceTimeBadge.classList.add("hidden");
     }
 
-    // 3. Ringkasan Chips Spesifikasi
+    // 3. Spec Summary Chips
     specsChipsRow.innerHTML = "";
     const formattedMileage = new Intl.NumberFormat("en-US").format(payload.milage);
     const chips = [
@@ -816,12 +929,19 @@ document.addEventListener("DOMContentLoaded", () => {
       specsChipsRow.appendChild(chip);
     });
 
-    // 4. Rentang Harga Probabilitas Regresi (Tampil jika price_low dan price_high tersedia)
+    // 4. Dual-Currency Range Bounds
     if (resData.price_low !== null && resData.price_high !== null && resData.price_low !== undefined && resData.price_high !== undefined) {
-      const fmtLow = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(resData.price_low);
-      const fmtHigh = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(resData.price_high);
-      rangeValLow.textContent = fmtLow;
-      rangeValHigh.textContent = fmtHigh;
+      const lowUSD = resData.price_low;
+      const highUSD = resData.price_high;
+      const lowIDR = lowUSD * USD_TO_IDR_RATE;
+      const highIDR = highUSD * USD_TO_IDR_RATE;
+
+      rangeIdrLow.textContent = formatCompactIDR(lowIDR);
+      rangeValLow.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(lowUSD);
+
+      rangeIdrHigh.textContent = formatCompactIDR(highIDR);
+      rangeValHigh.textContent = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(highUSD);
+
       priceRangeWrapper.classList.remove("hidden");
     } else {
       priceRangeWrapper.classList.add("hidden");
@@ -831,28 +951,46 @@ document.addEventListener("DOMContentLoaded", () => {
     valuationResult.classList.remove("hidden");
     errorPanel.classList.add("hidden");
 
-    // Scroll ke panel hasil jika di layar kecil
+    // Celebrate with custom automotive particles
+    spawnSuccessParticles(priceHeadlineIdr);
+
     if (window.innerWidth <= 980) {
       document.getElementById("valuation-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }
 
-  // Tombol Salin Hasil
+  // Copy Result (Includes both IDR and USD breakdown)
   if (btnCopyResult) {
     btnCopyResult.addEventListener("click", async () => {
       if (!lastPredictionResult) return;
-      const fmtPrice = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(lastPredictionResult.price);
+      const fmtUSD = formatUSD(lastPredictionResult.priceUSD);
+      const fmtIDR = "Rp " + formatIDRRaw(lastPredictionResult.priceIDR);
       const p = lastPredictionResult.payload;
       const fmtMil = new Intl.NumberFormat("en-US").format(p.milage);
-      const textToCopy = `Estimasi Harga Mobil: ${fmtPrice} USD\nKendaraan: ${p.model_year} ${p.brand} ${p.model}\nJarak Tempuh: ${fmtMil} mil | Transmisi: ${p.transmission}\nBahan Bakar: ${p.fuel_type} | Kondisi: ${p.accident}\nSumber: Used Car Price Estimator (Kelompok 2 - Universitas Bengkulu)`;
+
+      const textToCopy = [
+        "ESTIMASI HARGA PASAR MOBIL BEKAS",
+        `• Rupiah (IDR): ${fmtIDR}`,
+        `• Dolar (USD): ${fmtUSD}`,
+        `• Acuan Kurs: 1 USD ≈ Rp 16.000`,
+        "",
+        `Kendaraan: ${p.model_year} ${p.brand} ${p.model}`,
+        `Jarak Tempuh: ${fmtMil} mil`,
+        `Transmisi: ${p.transmission}`,
+        `Bahan Bakar: ${p.fuel_type}`,
+        `Kondisi: ${p.accident}`,
+        "",
+        "Sumber: Used Car Price Estimator (Kelompok 2 • Praktikum Pembelajaran Mesin • Universitas Bengkulu)"
+      ].join("\n");
 
       try {
         await navigator.clipboard.writeText(textToCopy);
         btnCopyResult.classList.add("copied");
-        copyBtnText.textContent = "Tersalin ✓";
+        copyBtnText.textContent = "Tersalin \u2713";
+        showToast("Hasil estimasi (IDR & USD) disalin ke papan klip");
         setTimeout(() => {
           btnCopyResult.classList.remove("copied");
-          copyBtnText.textContent = "Salin Hasil";
+          copyBtnText.textContent = "Salin Hasil (IDR & USD)";
         }, 2000);
       } catch (err) {
         console.error("Gagal menyalin:", err);
@@ -888,6 +1026,10 @@ document.addEventListener("DOMContentLoaded", () => {
       errorDetailsList.classList.add("hidden");
     }
     errorPanel.classList.remove("hidden");
+
+    if (window.innerWidth <= 980) {
+      errorPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }
 
   function hideError() {
@@ -895,21 +1037,30 @@ document.addEventListener("DOMContentLoaded", () => {
     errorDetailsList.innerHTML = "";
   }
 
-  // ==========================================
-  // 7. Event Submit Form & Fetch API
-  // ==========================================
+  if (btnRetry) {
+    btnRetry.addEventListener("click", () => {
+      hideError();
+      const firstInvalid = document.querySelector(".is-invalid");
+      if (firstInvalid) {
+        firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (typeof firstInvalid.focus === "function") firstInvalid.focus();
+      } else {
+        btnSubmit.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
+
+  // Form Submit Handler
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     hideError();
 
-    // 1. Validasi Sisi Klien
     const clientErrors = validateClientInputs();
     if (clientErrors.length > 0) {
       showError("Periksa Data Masukan", "Terdapat data yang belum sesuai ketentuan:", clientErrors);
       return;
     }
 
-    // 2. Susun Payload JSON
     const payload = {
       model_year: parseInt(fields.model_year.value, 10),
       milage: parseFloat(fields.milage.value),
@@ -942,7 +1093,6 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (response.status === 422) {
         const details = data.details || [data.message || "Data masukan tidak memenuhi validasi backend."];
         
-        // Petakan galat ke field terkait
         let firstScrolled = false;
         details.forEach(errStr => {
           const colonIdx = errStr.indexOf(":");
@@ -966,7 +1116,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (networkError) {
       hideLoading();
-      showError("Koneksi Terputus", "Gagal menghubungi server FastAPI. Pastikan server lokal aktif di http://127.0.0.1:8000.");
+      showError("Koneksi Terputus", "Gagal menghubungi server backend. Pastikan server lokal aktif di http://127.0.0.1:8000.");
     }
   });
 });

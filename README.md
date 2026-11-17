@@ -1,114 +1,203 @@
-# Used Car Price Estimator — Tugas Besar Machine Learning
+# Used Car Price Estimator: Tugas Besar Machine Learning
 
 **Kelompok:** 2  
 **Mata Kuliah:** Praktikum Pembelajaran Mesin  
 **Program Studi:** Sistem Informasi, Fakultas Teknik, Universitas Bengkulu  
 **Tahun Akademik:** 2026/2027  
-**Fokus Implementasi:** Penyempurnaan Tampilan UI/UX Otomotif, Dokumentasi Interaktif Swagger UI /docs, Dasbor Telemetri /health, & Cascading Combobox
+**Fokus Implementasi:** Antarmuka Web Otomotif Interaktif, Estimasi Ganda Rupiah (IDR) & Dolar (USD), Cascading Combobox 57 Merek, Dasbor Telemetri `/health`, & Dokumentasi API Swagger `/docs`.
 
 ---
 
-## 1. Ringkasan Sistem & Pembaruan
+## 1. Ringkasan Sistem & Fitur Utama
 
-Aplikasi **Used Car Price Estimator** menyajikan sistem estimasi harga mobil bekas berbasis model **Machine Learning (Random Forest Regressor)** dengan antarmuka web otomotif profesional yang minimalis (*precision slate enterprise theme*):
+Aplikasi **Used Car Price Estimator** adalah sistem estimasi nilai pasar mobil bekas berbasis model regresi Machine Learning (**Random Forest Regressor**) yang dilatih menggunakan data historis 4.009 transaksi kendaraan.
 
-- **Dokumentasi API Swagger UI (/docs):**
-  - Menggunakan tema *Precision Slate* selaras dengan antarmuka utama (`/static/swagger-custom.css`).
-  - Dilengkapi navigasi cepat di topbar menuju **Aplikasi Web** (`/`) dan **Dasbor Telemetri** (`/health`).
-  - Metadata lengkap: tabel 10 fitur wajib, tipe data, rentang nilai, alur "Try it out", serta disclaimer akademik.
-  - Dropdown **Examples** interaktif: 3 contoh data valid (*Hyundai Palisade 2021*, *Audi Q3 2021*, *Ford Utility Police Interceptor 2013*) dan demonstrasi galat validasi 422 (*Tahun < 1974*, *Kombinasi Brand-Model tidak cocok*).
-  - Dokumentasi seluruh status HTTP: 200 (Sukses), 422 (Unprocessable Content), 500 (Internal Error), dan 503 (Service Unavailable).
-- **Dasbor Telemetri & Pemeriksaan Sistem (/health):**
-  - **Negosiasi Konten (Content Negotiation):** Menampilkan antarmuka visual dasbor status (*health.html*) beranimasi denyut saat diakses melalui peramban web (*Accept: text/html*), dan mengembalikan format JSON terstruktur saat diakses oleh API client (*cURL, fetch, Swagger*). Parameter `?format=json` tersedia untuk memaksa JSON.
-  - Menampilkan metrik lengkap: status model, tipe estimator (*RandomForestRegressor*), berkas bobot, jumlah fitur (10 fitur), versi scikit-learn, versi Python, *uptime* server, dan stempel waktu ISO UTC.
-  - Penanganan status degradasi (HTTP 503) bila model belum dimuat.
-- **Penyempurnaan Antarmuka Web (Frontend):**
-  - **Dukungan Dark Mode:** Token warna `:root` adaptif dengan deteksi preferensi sistem (`prefers-color-scheme: dark`) serta tombol toggle tema manual (Matahari/Bulan) yang tersimpan di `localStorage`. Memenuhi standar kontras minimal WCAG AA.
-  - **Datalist Dinamis & Valid:** Atribut *engine* (1.044 opsi), *transmission* (55 opsi), *ext_col* (271 opsi), dan *int_col* (139 opsi) dimuat secara dinamis dari `static/categories.json` via JavaScript.
-  - **Aksesibilitas Combobox:** Dilengkapi atribut ARIA (`role="combobox"`, `role="listbox"`, `aria-activedescendant`, `aria-expanded`), navigasi keyboard penuh (*Panah Atas/Bawah, Enter, Escape, Tab*), dan deteksi klik di luar panel.
-  - **Penanganan Galat Field-Level (HTTP 422):** Menyorot batas input dengan warna merah, memunculkan pesan galat spesifik di bawah field terkait, dan melakukan *smooth scroll* otomatis ke field pertama yang salah.
-  - **Hasil Estimasi Informatif:**
-    - Animasi *count-up* halus (menghormati `prefers-reduced-motion`).
-    - Format mata uang USD rapi dalam satu baris (`$51,907.71 USD`).
-    - Badge waktu respons inferensi dalam milidetik (ms).
-    - Ringkasan spesifikasi dalam bentuk *chips* visual.
-    - Tombol **"Salin Hasil"** ke papan klip (*clipboard*) dengan umpan balik visual instan.
-    - Bilah visual rentang harga (*price range bar*) untuk regresi (aktif saat konstanta evaluasi `MODEL_MAE_USD` diisi).
-- **Stabilitas & Kompatibilitas Runtime:**
-  - Dilengkapi *compatibility layer* cerdas pada modul pemuatan model untuk memastikan model hasil serialisasi scikit-learn 1.6.1 dapat dimuat dan dijalankan secara andal pada berbagai versi lingkungan Python.
+### Fitur Utama Antarmuka (UI/UX)
+- **Estimasi Ganda Rupiah (IDR) & Dolar (USD):**
+  - **Angka Utama Rupiah:** Menghitung konversi langsung hasil prediksi model ke mata uang Rupiah dengan pemisah ribuan standar Indonesia (kurs acuan: 1 USD ≈ Rp 16.000).
+  - **Sub-headline Dolar (USD):** Menampilkan nilai prediksi murni dari model regresi Machine Learning beserta lencana latensi inferensi dalam milidetik (ms).
+  - **Rentang Harga Wajar Dua Mata Uang:** Menampilkan batas bawah dan atas estimasi regresi dalam format ringkas IDR dan USD (contoh: `Rp 510 Jt ($31.8K)` s.d. `Rp 602 Jt ($37.6K)`).
+  - **Salin Hasil Terpadu:** Tombol *Salin Hasil (IDR & USD)* untuk menyalin ringkasan estimasi lengkap beserta spesifikasi kendaraan ke papan klip (*clipboard*).
+- **Palet Warna Otomotif Klasik (Bespoke Non-AI Cliché):**
+  - Mengusung tema *British Racing Emerald* (`#0b3821`), kanvas *Warm Sandstone Alabaster* (`#f6f5f0`), dan aksen *Burnished Cognac Leather* (`#b45309`) yang elegan dan khas dunia otomotif prestisius.
+  - Bebas dari gradien ungu/sian generik yang sering dihasilkan oleh generator AI standar.
+- **Dukungan Dark Mode Penuh:**
+  - Mode gelap bertema *Deep Obsidian Spruce* (`#0a110d`) dengan kontras rasio tinggi (WCAG AAA 16:1) dan aksen *Luminous Sage Mint* (`#10b981`).
+  - Dilengkapi tombol toggle Matahari/Bulan di header yang tersimpan otomatis pada `localStorage`.
+- **Cascading Combobox Cerdas:**
+  - Pemilihan merek mobil (*Brand*) secara dinamis memfilter dan membuka daftar model resmi yang valid (*Model*).
+  - Dilengkapi fitur pencarian cepat (*fuzzy-search*) dan navigasi keyboard penuh (*Panah Atas/Bawah, Enter, Escape*).
+- **Muat Data Contoh Sekali Klik (Presets):**
+  - Tersedia tombol cepat untuk memuat spesifikasi nyata: *Hyundai Palisade 2021 (SUV)*, *Audi Q3 2021 (Premium)*, dan *Ford Interceptor 2013 (V6)*.
+- **Indikator Progres Pengisian:**
+  - Bilah progres interaktif yang melacak kelengkapan 10 bidang input secara langsung (*real-time*).
+- **Animasi & Umpan Balik Halus:**
+  - Animasi *count-up* ganda pada angka Rupiah dan Dolar dengan kurva perlambatan natural (*cubic ease-out*).
+  - Partikel selebrasi halus saat kalkulasi berhasil diselesaikan.
 
 ---
 
-## 2. Struktur Direktori Proyek
+## 2. Persyaratan Sistem
+
+Sebelum menjalankan aplikasi, pastikan perangkat Anda telah terpasang:
+- **Python:** Versi 3.10 atau yang lebih baru (disarankan Python 3.11 atau 3.12).
+- **pip:** Package installer bawaan Python.
+- **Peramban Web:** Google Chrome, Mozilla Firefox, Microsoft Edge, atau Safari versi modern.
+
+---
+
+## 3. Panduan Lengkap Menjalankan Antarmuka Web (UI)
+
+Ikuti langkah-langkah di bawah ini untuk menginstal dependensi dan meluncurkan antarmuka web:
+
+### Langkah 1: Buka Terminal / PowerShell
+Masuk ke direktori proyek:
+```bash
+cd "D:\Tubes ML\machine-learning-used-car"
+```
+
+### Langkah 2: (Opsional) Buat dan Aktifkan Virtual Environment
+Membuat virtual environment sangat disarankan agar dependensi terisolasi:
+
+- **Pada Windows (PowerShell):**
+  ```powershell
+  python -m venv .venv
+  .venv\Scripts\Activate.ps1
+  ```
+- **Pada Windows (Command Prompt):**
+  ```cmd
+  python -m venv .venv
+  .venv\Scripts\activate.bat
+  ```
+- **Pada macOS / Linux:**
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
+
+### Langkah 3: Pasang Dependensi Proyek
+Pasang paket yang tercantum pada berkas `requirements.txt`:
+```bash
+pip install -r requirements.txt
+```
+
+> **Catatan Dependensi Utama:** Paket mencakup `fastapi`, `uvicorn[standard]`, `scikit-learn==1.6.1`, `pandas`, `numpy`, `joblib`, dan `pydantic`.
+
+### Langkah 4: Jalankan Server Aplikasi
+Anda dapat menjalankan server menggunakan perintah langsung Python:
+```bash
+python app.py
+```
+
+Atau menggunakan CLI Uvicorn secara eksplisit dengan fitur *hot-reload*:
+```bash
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
+```
+
+Ketika server berhasil berjalan, terminal akan menampilkan pesan:
+```text
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process
+INFO:     Application startup complete.
+```
+
+### Langkah 5: Buka Antarmuka Web di Browser
+Buka peramban web pilihan Anda dan ketikkan alamat berikut pada *address bar*:
+
+👉 **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** atau **[http://localhost:8000/](http://localhost:8000/)**
+
+---
+
+## 4. Cara Menggunakan Antarmuka Web (Panduan Interaksi)
+
+Setelah halaman web terbuka, ikuti alur berikut untuk menguji estimasi harga mobil:
+
+1. **Uji Cepat Menggunakan Data Contoh (Preset):**
+   - Di bagian atas formulir, klik salah satu tombol preset, misalnya **Hyundai Palisade 2021**.
+   - Seluruh 10 bidang input formulir akan terisi secara otomatis dengan data valid.
+   - Bilah progres kelengkapan akan terisi penuh (10 / 10 Bidang Terisi).
+2. **Pengisian Manual:**
+   - **Merek Mobil (Brand):** Klik dropdown merek dan ketik untuk mencari (tersedia 57 merek resmi).
+   - **Model Kendaraan:** Setelah merek dipilih, dropdown model akan aktif dan menampilkan varian model yang sah untuk merek tersebut.
+   - **Tahun Pembuatan:** Masukkan tahun perakitan mobil (rentang valid: 1974 s.d. 2024).
+   - **Jarak Tempuh (Mileage):** Masukkan jarak tempuh dalam satuan mil (rentang valid: 0 s.d. 405.000 mil).
+   - **Powertrain & Kondisi:** Pilih jenis bahan bakar, ketik/pilih spesifikasi mesin, transmisi, warna eksterior, warna interior, dan catatan riwayat kecelakaan.
+3. **Menghitung Estimasi:**
+   - Klik tombol utama berwarna hijau tua: **"Hitung Estimasi Harga"**.
+   - Sistem akan mengirimkan data ke endpoint `/predict` via backend FastAPI.
+   - Panel di sebelah kanan akan bertransisi ke tampilan hasil dan menampilkan:
+     - **Nominal Rupiah (IDR):** Contoh `Rp 566.188.480`.
+     - **Nominal Dolar (USD):** Contoh `$35,386.78 USD`.
+     - **Waktu Inferensi:** Contoh `46.16 ms`.
+     - **Bilah Rentang Harga Wajar:** Menampilkan batas minimum dan maksimum estimasi pasar.
+     - **Chips Spesifikasi:** Ringkasan atribut kendaraan yang diprediksi.
+4. **Menyalin Hasil:**
+   - Klik tombol **"Salin Hasil (IDR & USD)"** untuk menyalin rangkuman estimasi ke clipboard Anda.
+5. **Mengganti Tema (Mode Terang / Gelap):**
+   - Klik ikon Matahari / Bulan pada pojok kanan atas bilah navigasi untuk berpindah antara tema *Warm Sandstone* dan *Deep Obsidian Spruce*.
+6. **Mereset Formulir:**
+   - Klik tombol **"Reset Formulir"** untuk mengembalikan semua isian ke kondisi awal.
+
+---
+
+## 5. Alamat Endpoint & Dokumentasi Tambahan
+
+Selain antarmuka pengguna utama, server menyediakan endpoint interaktif lainnya:
+
+| Halaman / Fitur | Alamat URL | Keterangan |
+| :--- | :--- | :--- |
+| **Antarmuka Pengguna Utama (UI)** | `http://127.0.0.1:8000/` | Halaman interaktif estimasi harga mobil bekas |
+| **Dokumentasi API Swagger UI** | `http://127.0.0.1:8000/docs` | Dokumentasi interaktif OpenAPI dengan alur "Try it out" |
+| **Dokumentasi Alternatif ReDoc** | `http://127.0.0.1:8000/redoc` | Dokumentasi skema API terstruktur ReDoc |
+| **Dasbor Kesehatan Server (HTML)** | `http://127.0.0.1:8000/health` | Tampilan visual metrik runtime dan status model ML |
+| **Telemetri Kesehatan (JSON)** | `http://127.0.0.1:8000/health?format=json` | Output JSON status server untuk pengujian otomatis |
+| **Katalog Brand & Model** | `http://127.0.0.1:8000/api/brand-models` | Pemetaan JSON daftar 57 merek dan ribuan model resmi |
+
+---
+
+## 6. Pengujian Otomatis Sistem
+
+Suite pengujian otomatis disediakan untuk memvalidasi seluruh fungsi backend, integritas model, aturan Pydantic, dan skema respons:
+
+Jalankan perintah berikut di terminal:
+```bash
+python test_system.py
+```
+
+Hasil Pengujian: **20/20 Test Cases Lulus (Tingkat Keberhasilan 100%)**.
+
+---
+
+## 7. Struktur Direktori Proyek
 
 ```text
 machine-learning-used-car/
 │
 ├── app.py                      # Backend API utama (FastAPI, Lifespan, Swagger Kustom, Negosiasi Konten /health)
 ├── requirements.txt            # Dependensi sistem resmi (scikit-learn==1.6.1)
-├── test_system.py              # Suite pengujian otomatis (20/20 Test Cases Lulus 100%)
-├── architecture_diagram.png    # Diagram arsitektur sistem resolusi tinggi
-├── used_cars.csv               # Dataset pelatihan resmi (4.009 baris data)
-├── README.md                   # Petunjuk instalasi & dokumentasi sistem
+├── test_system.py              # Suite pengujian otomatis (20 test cases terverifikasi)
+├── used_cars.csv               # Dataset pelatihan historis (4.009 baris data transaksi)
+├── README.md                   # Petunjuk instalasi, panduan UI, & dokumentasi teknis
 │
 ├── model/
-│   └── used_car_price_model.joblib   # Pipeline model Scikit-Learn hasil training (Random Forest)
+│   └── used_car_price_model.joblib   # Pipeline model Machine Learning hasil pelatihan (Random Forest)
 │
 ├── static/
-│   ├── index.html              # Antarmuka web utama otomotif modern & form 10 fitur
+│   ├── index.html              # Antarmuka web utama otomotif (form 10 fitur & panel hasil IDR/USD)
+│   ├── style.css               # Desain British Racing Emerald, Warm Sandstone & Dark Mode
+│   ├── app.js                  # Logika Cascading Combobox, kalkulasi Rupiah, Fetch API & animasi
 │   ├── health.html             # Dasbor HTML visual pemeriksaan status kesehatan server
-│   ├── swagger-custom.css      # Stylesheet Swagger UI tema Precision Slate & Dark Mode
-│   ├── style.css               # Desain antarmuka utama minimalis, dark mode & responsif
-│   ├── app.js                  # Logika Cascading Combobox, Fetch API, keyboard nav & DOM update
-│   ├── brand_models.json       # Pemetaan resmi 57 Brand -> 1.899 Models
-│   └── categories.json         # Metadata kategori resmi fitur pelatihan
-│
-└── code_figures/               # Cuplikan visual pendukung laporan
+│   ├── brand_models.json       # Basis data resmi pemetaan 57 Merek ke ribuan Model
+│   ├── categories.json         # Metadata kategori resmi fitur pelatihan (transmisi, warna, mesin)
+│   ├── swagger-custom.css      # Kustomisasi tema Swagger UI
+│   ├── redoc-custom.css        # Kustomisasi tema ReDoc
+│   ├── redoc.standalone.js     # Skrip pustaka lokal ReDoc
+│   ├── swagger-ui-bundle.js    # Skrip pustaka lokal Swagger UI
+│   └── swagger-ui.css          # Stylesheet pustaka lokal Swagger UI
 ```
 
 ---
 
-## 3. Petunjuk Menjalankan Aplikasi
+## 8. Disclaimer Akademik
 
-### Langkah 1: Instalasi Dependensi
-Pastikan dependensi sistem telah terpasang:
-```bash
-pip install -r requirements.txt
-```
-
-### Langkah 2: Menjalankan Server Backend
-Jalankan server aplikasi menggunakan Uvicorn:
-```bash
-uvicorn app:app --host 127.0.0.1 --port 8000 --reload
-```
-Atau jalankan langsung:
-```bash
-python app.py
-```
-
-### Langkah 3: Mengakses Aplikasi di Browser
-Buka peramban web dan akses URL:
-- **Aplikasi Web Utama:** [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-- **Dokumentasi Interaktif Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- **Dokumentasi ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-- **Dasbor Status Server (HTML):** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-- **Status Server Versi JSON:** [http://127.0.0.1:8000/health?format=json](http://127.0.0.1:8000/health?format=json)
-- **Endpoint Metadata Brand-Model:** [http://127.0.0.1:8000/api/brand-models](http://127.0.0.1:8000/api/brand-models)
-
----
-
-## 4. Pengujian Otomatis (20 Test Cases)
-
-Jalankan suite pengujian komprehensif untuk memverifikasi seluruh fungsi backend, validasi Pydantic, negosiasi konten `/health`, rute Swagger kustom `/docs`, skema OpenAPI, dan format respons:
-
-```bash
-python test_system.py
-```
-
-Hasil Pengujian: **20/20 Test Cases Lulus (100.0%)**.
-
----
-
-## 5. Disclaimer Akademik
-
-> **Disclaimer Akademik:** Aplikasi ini merupakan prototipe edukatif yang dikembangkan untuk keperluan Tugas Besar Praktikum Pembelajaran Mesin, Program Studi Sistem Informasi, Universitas Bengkulu. Estimasi yang dihasilkan merupakan pendekatan statistik berbasis regresi Random Forest dan bukan merupakan penentu transaksi resmi, penjamin harga pasar riil, maupun rekomendasi finansial profesional.
+> **Disclaimer Akademik:** Aplikasi ini merupakan prototipe edukatif yang dikembangkan untuk keperluan Tugas Besar Praktikum Pembelajaran Mesin, Program Studi Sistem Informasi, Fakultas Teknik, Universitas Bengkulu. Estimasi yang dihasilkan merupakan pendekatan statistik berbasis regresi Random Forest dari dataset historis dan bukan merupakan penentu transaksi resmi, penjamin harga pasar riil, maupun rekomendasi finansial profesional.
