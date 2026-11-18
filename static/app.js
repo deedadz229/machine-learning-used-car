@@ -5,7 +5,7 @@
 
 document.addEventListener("DOMContentLoaded", () => {
   // Exchange Rate Reference Constant: 1 USD ≈ Rp 16.000
-  const USD_TO_IDR_RATE = 16000;
+  const USD_TO_IDR_RATE = 18000;
 
   // Theme Management (Dark / Light Mode)
   const themeToggleBtn = document.getElementById("theme-toggle");
@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let savedTheme = null;
     try {
       savedTheme = localStorage.getItem("app_theme");
-    } catch (e) {}
+    } catch (e) { }
 
     const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
     const isDark = savedTheme === "dark" || (!savedTheme && systemPrefersDark);
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       localStorage.setItem("app_theme", isDark ? "dark" : "light");
-    } catch (e) {}
+    } catch (e) { }
   }
 
   if (themeToggleBtn) {
@@ -326,7 +326,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const select = fields.fuel_type;
       const currentVal = select.value;
       select.innerHTML = '<option value="" disabled selected>Pilih bahan bakar...</option>';
-      
+
       const fuelLabels = {
         "Gasoline": "Gasoline (Bensin)",
         "Diesel": "Diesel",
@@ -351,7 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const select = fields.accident;
       const currentVal = select.value;
       select.innerHTML = '<option value="" disabled selected>Pilih status riwayat...</option>';
-      
+
       const accidentLabels = {
         "None reported": "None reported (Tidak ada catatan kecelakaan)",
         "At least 1 accident or damage reported": "At least 1 accident or damage reported (Ada catatan kecelakaan/kerusakan)"
@@ -714,7 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modelFieldHint.textContent = "Otomatis menyesuaikan dengan merek yang dipilih.";
 
     clearAllErrors();
-    
+
     valuationResult.classList.add("hidden");
     valuationIdle.classList.remove("hidden");
     hideError();
@@ -850,7 +850,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Dual Currency Count-Up Animation (IDR + USD Simultaneous)
   function animateDualCountUp(targetUSD, targetIDR, duration = 700) {
     const prefersReducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    
+
     const finalFormattedIDR = formatIDRRaw(targetIDR);
     const finalFormattedUSD = formatUSD(targetUSD);
 
@@ -1092,7 +1092,7 @@ document.addEventListener("DOMContentLoaded", () => {
         displayPredictionResult(data, payload);
       } else if (response.status === 422) {
         const details = data.details || [data.message || "Data masukan tidak memenuhi validasi backend."];
-        
+
         let firstScrolled = false;
         details.forEach(errStr => {
           const colonIdx = errStr.indexOf(":");
